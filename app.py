@@ -1,0 +1,341 @@
+import streamlit as st
+import pandas as pd
+import geopandas as gpd
+import pydeck as pdk
+from fastkml import kml
+from typing import Optional
+import os
+
+# --- Page Config ---
+st.set_page_config(
+    page_title="Dashboard of Prachinburi District 1",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+# --- Constants ---
+CSV_FILE = "คะแนนเลือกตั้ง_ปราจีนบุรี_เขต1_แบ่งเขต.csv"
+KML_FILE = "แผนที่หาเสียงปราจีนบุรี.kml"
+COMMENTS_FILE = "comments.csv"
+
+# --- Data Loading ---
+
+def load_comments() -> list:
+    """Loads comments from CSV file."""
+    if os.path.exists(COMMENTS_FILE):
+        try:
+            df = pd.read_csv(COMMENTS_FILE)
+            return df.to_dict('records')
+        except Exception as e:
+            st.error(f"Error loading comments: {e}")
+            return []
+    return []
+
+def save_comment(comment: dict):
+    """Saves a single comment to CSV file."""
+    try:
+        df_new = pd.DataFrame([comment])
+        if os.path.exists(COMMENTS_FILE):
+            df_new.to_csv(COMMENTS_FILE, mode='a', header=False, index=False)
+        else:
+            df_new.to_csv(COMMENTS_FILE, mode='w', header=True, index=False)
+    except Exception as e:
+        st.error(f"Error saving comment: {e}")
+
+@st.cache_data
+def load_csv_data(filepath: str) -> pd.DataFrame:
+    """Loads election data from CSV."""
+    if not os.path.exists(filepath):
+        st.error(f"File not found: {filepath}")
+        return pd.DataFrame()
+    
+    try:
+        df = pd.read_csv(filepath)
+        # Verify required columns exist
+        required = ['latitude', 'longitude']
+        if not all(col in df.columns for col in required):
+            st.error(f"CSV missing required columns: {required}")
+            return pd.DataFrame()
+        return df
+    except Exception as e:
+        st.error(f"Error loading CSV: {e}")
+        return pd.DataFrame()
+
+@st.cache_data
+def load_kml_data(filepath: str) -> Optional[gpd.GeoDataFrame]:
+    """Loads sub-district polygons from KML."""
+    if not os.path.exists(filepath):
+        st.error(f"File not found: {filepath}")
+        return None
+    
+    # Try loading with geopandas directly (uses fiona/gdal)
+    try:
+        # Prioritize specific layers that sound like sub-district boundaries
+        target_layers = ['เส้นแบ่งตำบล ปราจีนบุรี', 'Prachin Buri', 'ปราจีนเขต1', 'เขต 1']
+        
+        # We need to find available layers first to avoid errors
+        import fiona
+        available_layers = fiona.listlayers(filepath)
+        
+        selected_layer = None
+        for target in target_layers:
+            if target in available_layers:
+                selected_layer = target
+                break
+        
+        # If no target found, use the first one (default)
+        if not selected_layer and available_layers:
+            selected_layer = available_layers[0]
+            
+        if selected_layer:
+            gdf = gpd.read_file(filepath, layer=selected_layer)
+            # Ensure we have some description field for the tooltip
+            if 'Description' not in gdf.columns and 'description' not in gdf.columns:
+                 gdf['description'] = gdf['Name'] if 'Name' in gdf.columns else "No details"
+            return gdf
+            
+        return None
+
+    except Exception as e:
+        # Fallback manual parsing if GDAL driver issues
+        # Using fastkml as requested/fallback
+        try:
+            with open(filepath, 'rb') as f:
+                doc = f.read()
+            k = kml.KML()
+            k.from_string(doc)
+            
+            features = []
+            # Recursive function to find features
+            def extract_features(folder):
+                if hasattr(folder, 'features'):
+                    for feat in folder.features():
+                        if hasattr(feat, 'geometry'):
+                            features.append({
+                                'geometry': feat.geometry,
+                                'name': feat.name,
+                                'description': feat.description
+                            })
+                        extract_features(feat)
+            
+            extract_features(k)
+            
+            if features:
+                 # Convert to GeoDataFrame
+                from shapely.geometry import shape
+                # Note: fastkml geometries are already shapely-like or convert easily
+                # specific handling might be needed depending on fastkml version
+                # But let's assume standard object structure for now or defer to library
+                gdf = gpd.GeoDataFrame(features)
+                return gdf
+            
+        except Exception as e2:
+            st.error(f"Error loading KML: {e} | Fallback error: {e2}")
+            return None
+
+# --- Main App ---
+
+def main():
+    st.title("Dashboard of Prachinburi District 1")
+    
+    # Load Data
+    with st.spinner("Loading data..."):
+        df_election = load_csv_data(CSV_FILE)
+        gdf_districts = load_kml_data(KML_FILE)
+    
+    # Inspect Data (Debug mode or just simple check)
+    # st.write(df_election.head())
+    
+    if gdf_districts is not None and not gdf_districts.empty:
+        st.sidebar.success(f"Loaded {len(gdf_districts)} polygons from KML")
+        
+        # Helper to safely get KML columns - trying both cases
+        kml_cols = gdf_districts.columns
+        name_col = next((c for c in kml_cols if c.lower() == 'name'), None)
+        desc_col = next((c for c in kml_cols if c.lower() == 'description'), None)
+        
+        def get_kml_html(row):
+            name = row[name_col] if name_col else "Sub-district"
+            desc = row[desc_col] if desc_col else ""
+            # Simple handling of missing description
+            if pd.isna(desc): desc = ""
+            return f"<b>{name}</b><br/>{desc}"
+        
+        gdf_districts['tooltip_html'] = gdf_districts.apply(get_kml_html, axis=1)
+
+    else:
+        st.sidebar.warning("Failed to load KML polygons")
+
+    if not df_election.empty:
+         st.sidebar.success(f"Loaded {len(df_election)} points from CSV")
+         
+         # Prepare Election Tooltip HTML
+         def get_election_html(row):
+            # Columns requested by user
+            columns = [
+                "หน่วย", "ผู้มีสิทธิ์_แบ่งเขต", "ผู้มาใช้สิทธิ์_แบ่งเขต", "เปอร์เซ็นต์ใช้สิทธิ์_แบ่งเขต",
+                "บัตรเสีย_แบ่งเขต", "ไม่เลือกผู้ใด_แบ่งเขต", "ก้าวไกล_แบ่งเขต", "ชาติพัฒนากล้า_แบ่งเขต",
+                "ชาติไทยพัฒนา_แบ่งเขต", "ประชาชาติ_แบ่งเขต", "ประชาธิปัตย์_แบ่งเขต", "พลังประชารัฐ_แบ่งเขต",
+                "ภูมิใจไทย_แบ่งเขต", "รวมไทยสร้างชาติ_แบ่งเขต", "เพื่อไทย_แบ่งเขต", "เสรีรวมไทย_แบ่งเขต", 
+                "ไทยสร้างไทย_แบ่งเขต"
+            ]
+            
+            unit_name = row.get('ชื่อหน่วยเลือกตั้ง', 'Election Unit')
+            header = f"<b>{unit_name}</b><hr style='margin: 5px 0;'/>"
+            rows = []
+            for col in columns:
+                val = row.get(col, "-")
+                # Format float if needed, but CSV load usually infers types.
+                rows.append(f"<tr><td style='padding-right: 10px; font-weight: bold;'>{col}:</td><td>{val}</td></tr>")
+            
+            table = f"<table style='width:100%; border-collapse: collapse; font-size: 12px;'>{''.join(rows)}</table>"
+            return header + table
+
+         df_election['tooltip_html'] = df_election.apply(get_election_html, axis=1)
+    
+    # Initialize Session State for Comments from File
+    if 'comments' not in st.session_state:
+        st.session_state['comments'] = load_comments()
+
+    # Sidebar Controls
+    st.sidebar.header("Layer Controls")
+    show_districts = st.sidebar.checkbox("Show Sub-districts (KML)", value=True)
+    show_points = st.sidebar.checkbox("Show Election Points (CSV)", value=True)
+    
+    st.sidebar.markdown("---")
+    st.sidebar.header("Map Style")
+    map_style_selection = st.sidebar.radio(
+        "Select Base Map",
+        options=["Satellite", "Default (Light)"],
+        index=0
+    )
+    
+    # Map Style Mapping
+    map_styles = {
+        "Satellite": "mapbox://styles/mapbox/satellite-v9",
+        "Default (Light)": "mapbox://styles/mapbox/light-v9"
+    }
+    selected_map_style = map_styles.get(map_style_selection, "mapbox://styles/mapbox/light-v9")
+    
+    # Prepare Pydeck Layers
+    layers = []
+    
+    if show_districts and gdf_districts is not None:
+        # Polygon Layer - Yellow Lines Style
+        layer_districts = pdk.Layer(
+            "GeoJsonLayer",
+            gdf_districts,
+            opacity=1.0,
+            stroked=True,
+            filled=True, 
+            get_fill_color=[0, 0, 0, 0], 
+            get_line_color=[255, 255, 0, 255], 
+            get_line_width=30,
+            pickable=True,
+            auto_highlight=True,
+            wireframe=True,
+            highlight_color=[255, 255, 0, 128],
+        )
+        layers.append(layer_districts)
+
+    if show_points and not df_election.empty:
+        # Scatterplot Layer
+        layer_points = pdk.Layer(
+            "ScatterplotLayer",
+            df_election,
+            get_position=['longitude', 'latitude'],
+            get_color=[255, 65, 54, 200], # Redish
+            get_radius=100,
+            pickable=True,
+            auto_highlight=True,
+        )
+        layers.append(layer_points)
+        
+    # Comments Layer
+    if st.session_state['comments']:
+        df_comments = pd.DataFrame(st.session_state['comments'])
+        
+        # Add tooltip for comments
+        df_comments['tooltip_html'] = df_comments.apply(lambda row: f"<b>Comment</b><br/>{row.get('text', '')}", axis=1)
+
+        layer_comments = pdk.Layer(
+            "ScatterplotLayer", 
+            df_comments,
+            get_position=['longitude', 'latitude'],
+            get_fill_color=[0, 255, 0, 255], # Green
+            get_radius=300, 
+            pickable=True,
+            auto_highlight=True,
+        )
+        layers.append(layer_comments)
+        
+    # Map State
+    # Center map on data
+    if not df_election.empty:
+        initial_view_state = pdk.ViewState(
+            latitude=df_election['latitude'].mean(),
+            longitude=df_election['longitude'].mean(),
+            zoom=10,
+            pitch=0,
+        )
+    else:
+        initial_view_state = pdk.ViewState( latitude=14.0, longitude=101.5, zoom=10 ) 
+
+    # Tooltip
+    # We use the pre-calculated 'tooltip_html' column from dataframes
+    tooltip = {
+        "html": "{tooltip_html}", 
+        "style": {"backgroundColor": "steelblue", "color": "white", "maxWidth": "300px"}
+    }
+    
+    # Render Map - Using Selected Style
+    r = pdk.Deck(
+        layers=layers,
+        initial_view_state=initial_view_state,
+        map_style=selected_map_style, 
+        tooltip=tooltip
+    )
+    
+    st.pydeck_chart(r)
+    
+    # Comments / Annotation Section
+    st.markdown("---")
+    st.header("Campaign Comments")
+    st.markdown("Add a comment to a specific location directly to `comments.csv`.")
+    
+    # Form to add comment
+    with st.form("comment_form"):
+        c_col1, c_col2 = st.columns(2)
+        with c_col1:
+             c_lat = st.number_input("Latitude", value=initial_view_state.latitude, format="%.6f")
+        with c_col2:
+             c_lon = st.number_input("Longitude", value=initial_view_state.longitude, format="%.6f")
+        
+        c_text = st.text_area("Comment Text")
+        c_submit = st.form_submit_button("Add Comment")
+        
+        if c_submit:
+            if c_text:
+                new_comment = {
+                    "latitude": c_lat,
+                    "longitude": c_lon,
+                    "text": c_text,
+                    "ชื่อหน่วยเลือกตั้ง": "Comment: " + c_text[:20] # For tooltip compat
+                }
+                # Save to session
+                st.session_state['comments'].append(new_comment)
+                # Save to file
+                save_comment(new_comment)
+                
+                st.success("Comment added and saved to file!")
+                st.rerun()
+            else:
+                st.warning("Please enter some text.")
+            
+    # Display Comments
+    if st.session_state['comments']:
+        st.subheader("Existing Comments")
+        st.dataframe(pd.DataFrame(st.session_state['comments'])[['latitude', 'longitude', 'text']])
+
+if __name__ == "__main__":
+    main()
