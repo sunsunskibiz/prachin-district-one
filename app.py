@@ -171,25 +171,77 @@ def main():
          
          # Prepare Election Tooltip HTML
          def get_election_html(row):
-            # Columns requested by user
-            columns = [
+            # General Info Columns
+            info_columns = [
                 "หน่วย", "ผู้มีสิทธิ์_แบ่งเขต", "ผู้มาใช้สิทธิ์_แบ่งเขต", "เปอร์เซ็นต์ใช้สิทธิ์_แบ่งเขต",
-                "บัตรเสีย_แบ่งเขต", "ไม่เลือกผู้ใด_แบ่งเขต", "ก้าวไกล_แบ่งเขต", "ชาติพัฒนากล้า_แบ่งเขต",
-                "ชาติไทยพัฒนา_แบ่งเขต", "ประชาชาติ_แบ่งเขต", "ประชาธิปัตย์_แบ่งเขต", "พลังประชารัฐ_แบ่งเขต",
-                "ภูมิใจไทย_แบ่งเขต", "รวมไทยสร้างชาติ_แบ่งเขต", "เพื่อไทย_แบ่งเขต", "เสรีรวมไทย_แบ่งเขต", 
-                "ไทยสร้างไทย_แบ่งเขต"
+                "บัตรเสีย_แบ่งเขต", "ไม่เลือกผู้ใด_แบ่งเขต"
+            ]
+            
+            # Vote Columns for Chart
+            vote_columns = [
+                "ก้าวไกล_แบ่งเขต", "ชาติพัฒนากล้า_แบ่งเขต", "ชาติไทยพัฒนา_แบ่งเขต", "ประชาชาติ_แบ่งเขต", 
+                "ประชาธิปัตย์_แบ่งเขต", "พลังประชารัฐ_แบ่งเขต", "ภูมิใจไทย_แบ่งเขต", "รวมไทยสร้างชาติ_แบ่งเขต", 
+                "เพื่อไทย_แบ่งเขต", "เสรีรวมไทย_แบ่งเขต", "ไทยสร้างไทย_แบ่งเขต"
             ]
             
             unit_name = row.get('ชื่อหน่วยเลือกตั้ง', 'Election Unit')
             header = f"<b>{unit_name}</b><hr style='margin: 5px 0;'/>"
-            rows = []
-            for col in columns:
-                val = row.get(col, "-")
-                # Format float if needed, but CSV load usually infers types.
-                rows.append(f"<tr><td style='padding-right: 10px; font-weight: bold;'>{col}:</td><td>{val}</td></tr>")
             
-            table = f"<table style='width:100%; border-collapse: collapse; font-size: 12px;'>{''.join(rows)}</table>"
-            return header + table
+            # 1. Info Stats Table
+            info_rows = []
+            for col in info_columns:
+                val = row.get(col, "-")
+                info_rows.append(f"<tr><td style='padding-right: 10px; font-weight: bold;'>{col}:</td><td>{val}</td></tr>")
+            
+            info_table = f"<table style='width:100%; border-collapse: collapse; font-size: 12px; margin-bottom: 10px;'>{''.join(info_rows)}</table>"
+            
+            # 2. Vote Chart
+            # Parse votes to find max for scaling
+            votes = {}
+            max_vote = 1
+            for col in vote_columns:
+                try:
+                    val = float(row.get(col, 0))
+                except:
+                    val = 0
+                votes[col] = val
+            
+            if votes:
+                max_vote = max(votes.values()) if max(votes.values()) > 0 else 1
+            
+            # Sort votes by value descending
+            sorted_votes = sorted(votes.items(), key=lambda item: item[1], reverse=True)
+            
+            chart_rows = []
+            for col, val in sorted_votes:
+                # Simple cleaning of column name for display (remove '_แบ่งเขต')
+                display_name = col.replace('_แบ่งเขต', '')
+                
+                bar_width = (val / max_vote) * 100
+                bar_color = '#4CAF50' # Default Green
+                # Optional: Custom colors for known parties
+                if 'เพื่อไทย' in col: bar_color = '#E60000' # Red
+                if 'ก้าวไกล' in col: bar_color = '#F47920' # Orange
+                if 'รวมไทยสร้างชาติ' in col: bar_color = '#4CAF50' # Green (Requested)
+                if 'พลังประชารัฐ' in col: bar_color = '#4CAF50' # Green (Requested)
+                if 'ภูมิใจไทย' in col: bar_color = '#00366F' # Dark Blue
+                
+                chart_rows.append(f"""
+                <tr>
+                    <td style='width: 30%; font-size: 10px; padding-right:5px; white-space:nowrap;'>{display_name}</td>
+                    <td style='width: 15%; font-size: 10px; text-align:right; padding-right:5px;'>{int(val)}</td>
+                    <td style='width: 55%;'>
+                        <div style='background-color: #ddd; width: 100%; height: 8px; border-radius: 2px;'>
+                            <div style='background-color: {bar_color}; width: {bar_width}%; height: 100%; border-radius: 2px;'></div>
+                        </div>
+                    </td>
+                </tr>
+                """)
+            
+            chart_header = "<div style='font-size: 12px; font-weight: bold; margin-bottom: 2px;'>Vote Counts</div>"
+            chart_table = f"<table style='width:100%; border-collapse: collapse;'>{''.join(chart_rows)}</table>"
+            
+            return header + info_table + chart_header + chart_table
 
          df_election['tooltip_html'] = df_election.apply(get_election_html, axis=1)
     
