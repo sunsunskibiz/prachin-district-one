@@ -5,6 +5,7 @@ import pydeck as pdk
 from fastkml import kml
 from typing import Optional
 import os
+import re
 
 # --- Page Config ---
 st.set_page_config(
@@ -133,6 +134,42 @@ def load_kml_data(filepath: str) -> Optional[gpd.GeoDataFrame]:
             st.error(f"Error loading KML: {e} | Fallback error: {e2}")
             return None
 
+def create_mask_polygon(gdf: gpd.GeoDataFrame) -> Optional[gpd.GeoDataFrame]:
+    """Creates a polygon covering the area OUTSIDE the given GeoDataFrame."""
+    if gdf is None or gdf.empty:
+        return None
+    
+    try:
+        from shapely.geometry import box
+        
+        # Create a large bounding box (covering the world or a sufficient area)
+        # Prachinburi is around 101 E, 14 N. 
+        # A box covering Thailand/SEA should be enough + margin. 
+        # Or just global [-180, -90, 180, 90]
+        world_box = box(97.0, 5.0, 106.0, 21.0) # Approx Thailand bounds (easier to render than whole world sometimes)
+        # Actually Pydeck handles global fine, but let's stick to a reasonable bound around the data to avoid artifacts
+        # Using the bounds of the gdf + buffer is safer?
+        # User wants "gray out the area that not in the blue polygon".
+        # Usually implies the rest of the map.
+        # Let's use a very large box.
+        world_box = box(-180, -90, 180, 90)
+        
+        # Merge all districts into one shape
+        # shapely 2.0 recommends union_all(), older uses unary_union
+        try:
+             unified_geom = gdf.geometry.union_all()
+        except AttributeError:
+             unified_geom = gdf.geometry.unary_union
+             
+        # Calculate difference: World - Districts
+        mask_geom = world_box.difference(unified_geom)
+        
+        return gpd.GeoDataFrame(geometry=[mask_geom], crs=gdf.crs)
+    except Exception as e:
+        st.error(f"Error creating mask: {e}")
+        return None
+
+
 # --- Main App ---
 
 def main():
@@ -149,17 +186,39 @@ def main():
     if gdf_districts is not None and not gdf_districts.empty:
         st.sidebar.success(f"Loaded {len(gdf_districts)} polygons from KML")
         
-        # Helper to safely get KML columns - trying both cases
+        # Helper to safely get KML columns
+        # KML usually loads with 'Name' and 'Description' (often containing HTML table of attributes)
+        # We need to parse 'T_NAME_T' and 'A_NAME_T' from that Description HTML if they aren't columns.
+        
         kml_cols = gdf_districts.columns
         name_col = next((c for c in kml_cols if c.lower() == 'name'), None)
         desc_col = next((c for c in kml_cols if c.lower() == 'description'), None)
         
         def get_kml_html(row):
-            name = row[name_col] if name_col else "Sub-district"
-            desc = row[desc_col] if desc_col else ""
-            # Simple handling of missing description
-            if pd.isna(desc): desc = ""
-            return f"<b>{name}</b><br/>{desc}"
+            # 1. Try direct column access (if geopandas loaded it nicely)
+            t_val = row.get('T_NAME_T', None)
+            a_val = row.get('A_NAME_T', None)
+            
+            # 2. If not found, try parsing 'description' (fallback or fastkml result)
+            desc_html = str(row[desc_col]) if desc_col else ""
+            
+            if not t_val and desc_html:
+                # Regex to find: <td>T_NAME_T</td><td>Value</td> or similar
+                # Handling flexible whitespace and casing
+                match = re.search(r"<td>T_NAME_T</td>\s*<td>(.*?)</td>", desc_html, re.IGNORECASE)
+                if match:
+                    t_val = match.group(1).strip()
+            
+            if not a_val and desc_html:
+                match = re.search(r"<td>A_NAME_T</td>\s*<td>(.*?)</td>", desc_html, re.IGNORECASE)
+                if match:
+                    a_val = match.group(1).strip()
+            
+            # Default fallbacks if extraction failed
+            title = t_val if t_val else (row[name_col] if name_col else "Sub-district")
+            body = a_val if a_val else ""
+            
+            return f"<b>ต.{title}</b><br/>อ.{body}"
         
         gdf_districts['tooltip_html'] = gdf_districts.apply(get_kml_html, axis=1)
 
@@ -212,6 +271,9 @@ def main():
             # Sort votes by value descending
             sorted_votes = sorted(votes.items(), key=lambda item: item[1], reverse=True)
             
+            # Limit to top 5 (User Request)
+            sorted_votes = sorted_votes[:5]
+            
             chart_rows = []
             for col, val in sorted_votes:
                 # Simple cleaning of column name for display (remove '_แบ่งเขต')
@@ -259,7 +321,7 @@ def main():
     map_style_selection = st.sidebar.radio(
         "Select Base Map",
         options=["Satellite", "Default (Light)"],
-        index=0
+        index=1
     )
     
     # Map Style Mapping
@@ -273,7 +335,22 @@ def main():
     layers = []
     
     if show_districts and gdf_districts is not None:
-        # Polygon Layer - Yellow Lines Style
+        # 1. Mask Layer (Gray out outside)
+        gdf_mask = create_mask_polygon(gdf_districts)
+        if gdf_mask is not None:
+             layer_mask = pdk.Layer(
+                "GeoJsonLayer",
+                gdf_mask,
+                opacity=0.5,
+                stroked=False,
+                filled=True,
+                get_fill_color=[128, 128, 128, 100], # Gray, semi-transparent
+                pickable=False,
+            )
+             layers.append(layer_mask)
+
+        # 2. Polygon Layer - Blue Lines Style (Requested)
+        # Polygon Layer - Blue Lines Style (Requested)
         layer_districts = pdk.Layer(
             "GeoJsonLayer",
             gdf_districts,
@@ -281,12 +358,12 @@ def main():
             stroked=True,
             filled=True, 
             get_fill_color=[0, 0, 0, 0], 
-            get_line_color=[255, 255, 0, 255], 
+            get_line_color=[0, 0, 255, 255], # Blue lines
             get_line_width=30,
             pickable=True,
             auto_highlight=True,
             wireframe=True,
-            highlight_color=[255, 255, 0, 128],
+            highlight_color=[0, 0, 255, 128], # Blue highlight
         )
         layers.append(layer_districts)
 
