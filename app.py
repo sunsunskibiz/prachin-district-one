@@ -134,24 +134,22 @@ def load_kml_data(filepath: str) -> Optional[gpd.GeoDataFrame]:
             st.error(f"Error loading KML: {e} | Fallback error: {e2}")
             return None
 
+
 def create_mask_polygon(gdf: gpd.GeoDataFrame) -> Optional[gpd.GeoDataFrame]:
     """Creates a polygon covering the area OUTSIDE the given GeoDataFrame."""
     if gdf is None or gdf.empty:
         return None
     
+    # Check if we have polygons. If only lines/points, masking the world excluding them makes no sense (still full world).
+    has_polygons = any(geom.geom_type in ('Polygon', 'MultiPolygon') for geom in gdf.geometry)
+    if not has_polygons:
+        return None
+
     try:
         from shapely.geometry import box
         
         # Create a large bounding box (covering the world or a sufficient area)
-        # Prachinburi is around 101 E, 14 N. 
-        # A box covering Thailand/SEA should be enough + margin. 
-        # Or just global [-180, -90, 180, 90]
-        world_box = box(97.0, 5.0, 106.0, 21.0) # Approx Thailand bounds (easier to render than whole world sometimes)
-        # Actually Pydeck handles global fine, but let's stick to a reasonable bound around the data to avoid artifacts
-        # Using the bounds of the gdf + buffer is safer?
         # User wants "gray out the area that not in the blue polygon".
-        # Usually implies the rest of the map.
-        # Let's use a very large box.
         world_box = box(-180, -90, 180, 90)
         
         # Merge all districts into one shape
@@ -231,7 +229,26 @@ def main():
     # Load Data
     with st.spinner("Loading data..."):
         df_election = load_csv_data(CSV_FILE)
-        gdf_districts = load_kml_data(KML_FILE)
+        
+        # KML uploader
+        st.sidebar.markdown("---")
+        st.sidebar.header("Data Source")
+        uploaded_kml = st.sidebar.file_uploader("Upload KML File (Optional)", type=['kml'])
+        
+        kml_path_to_use = KML_FILE
+        if uploaded_kml is not None:
+            # Save uploaded file temporarily because GeoPandas needs a path
+            # or we need to handle bytes directly (which load_kml_data logic handles via fallback, but path is safer for fiona)
+            try:
+                temp_filename = "temp_uploaded.kml"
+                with open(temp_filename, "wb") as f:
+                    f.write(uploaded_kml.getbuffer())
+                kml_path_to_use = temp_filename
+                st.sidebar.success(f"Using uploaded KML: {uploaded_kml.name}")
+            except Exception as e:
+                st.sidebar.error(f"Error saving uploaded KML: {e}")
+        
+        gdf_districts = load_kml_data(kml_path_to_use)
 
     # Pre-process Data for Map
     df_votes_by_district = pd.DataFrame()
@@ -259,8 +276,7 @@ def main():
     
     with tab_overview:
         if gdf_districts is not None and not gdf_districts.empty:
-            st.sidebar.success(f"Loaded {len(gdf_districts)} polygons from KML")
-        
+            st.sidebar.success(f"Loaded {len(gdf_districts)} features from KML")
             # Helper to safely get KML columns
             # KML usually loads with 'Name' and 'Description' (often containing HTML table of attributes)
             # We need to parse 'T_NAME_T' and 'A_NAME_T' from that Description HTML if they aren't columns.
@@ -383,7 +399,7 @@ def main():
                 chart_table = f"<table style='width:100%; border-collapse: collapse;'>{''.join(chart_rows)}</table>"
             
                 return header + info_table + chart_header + chart_table
-
+            
              df_election['tooltip_html'] = df_election.apply(get_election_html, axis=1)
     
         # Initialize Session State for Comments from File
@@ -400,14 +416,15 @@ def main():
         st.sidebar.header("Map Style")
         map_style_selection = st.sidebar.radio(
             "Select Base Map",
-            options=["Satellite", "Default (Light)"],
+            options=["Satellite", "Default (Light)", "Terrain (ภูมิประเทศ)"],
             index=1
         )
     
         # Map Style Mapping
         map_styles = {
             "Satellite": "mapbox://styles/mapbox/satellite-v9",
-            "Default (Light)": "mapbox://styles/mapbox/light-v9"
+            "Default (Light)": "mapbox://styles/mapbox/light-v9",
+            "Terrain (ภูมิประเทศ)": "mapbox://styles/mapbox/outdoors-v12"
         }
         selected_map_style = map_styles.get(map_style_selection, "mapbox://styles/mapbox/light-v9")
     
@@ -430,7 +447,6 @@ def main():
                  layers.append(layer_mask)
 
             # 2. Polygon Layer - Blue Lines Style (Requested)
-            # Polygon Layer - Blue Lines Style (Requested)
             layer_districts = pdk.Layer(
                 "GeoJsonLayer",
                 gdf_districts,
@@ -440,6 +456,7 @@ def main():
                 get_fill_color=[0, 0, 0, 0], 
                 get_line_color=[0, 0, 255, 255], # Blue lines
                 get_line_width=30,
+                lineWidthMinPixels=2, # Ensure visibility at high zoom levels
                 pickable=True,
                 auto_highlight=True,
                 wireframe=True,
