@@ -188,6 +188,22 @@ def extract_subdistrict_name(row, kml_cols):
          
     return t_val
 
+def extract_amphoe_name(row, kml_cols):
+    """Extracts amphoe name from KML data."""
+    desc_col = next((c for c in kml_cols if c.lower() == 'description'), None)
+    
+    a_val = row.get('A_NAME_T', None)
+    
+    # If not found, try parsing 'description'
+    desc_html = str(row[desc_col]) if desc_col else ""
+    
+    if not a_val and desc_html:
+        match = re.search(r"<td>A_NAME_T</td>\s*<td>(.*?)</td>", desc_html, re.IGNORECASE)
+        if match:
+            a_val = match.group(1).strip()
+            
+    return a_val if a_val else ""
+
 def calculate_votes_by_subdistrict(df_election):
     """Aggregates votes by sub-district and determines the winner."""
     if df_election.empty or 'ตำบล' not in df_election.columns:
@@ -200,6 +216,10 @@ def calculate_votes_by_subdistrict(df_election):
     df_grouped = df_election.groupby('ตำบล')[cols_to_sum].sum().reset_index()
     df_display = df_grouped.rename(columns=lambda x: x.replace('_แบ่งเขต', ''))
     
+    # Calculate Percentage for Turnout
+    if 'ผู้มีสิทธิ์' in df_display.columns and 'ผู้มาใช้สิทธิ์' in df_display.columns:
+        df_display['เปอร์เซ็นต์ใช้สิทธิ์'] = (df_display['ผู้มาใช้สิทธิ์'] / df_display['ผู้มีสิทธิ์']) * 100
+
     # Calculate Winner
     party_cols = [
         "ก้าวไกล", "ชาติพัฒนากล้า", "ชาติไทยพัฒนา", "ประชาชาติ", 
@@ -211,14 +231,13 @@ def calculate_votes_by_subdistrict(df_election):
     if existing_parties:
         df_display['Winner'] = df_display[existing_parties].idxmax(axis=1)
         
-        # Calculate Percentage for Color Intensity
-        # Sum only the party votes to get the total relevant votes or total votes in that row
-        # Using existing_parties sum
-        df_display['Total_Votes_Parties'] = df_display[existing_parties].sum(axis=1)
-        df_display['Max_Votes'] = df_display[existing_parties].max(axis=1)
-        
-        df_display['Winner_Pct'] = (df_display['Max_Votes'] / df_display['Total_Votes_Parties'].replace(0, 1)) * 100
-    
+        # Calculate Winner Votes and Percentage
+        df_display['Winner_Votes'] = df_display[existing_parties].max(axis=1)
+        if 'ผู้มาใช้สิทธิ์' in df_display.columns:
+             df_display['Winner_Pct'] = (df_display['Winner_Votes'] / df_display['ผู้มาใช้สิทธิ์'].replace(0, 1)) * 100
+        else:
+             df_display['Winner_Pct'] = 0
+
     return df_display
 
 # --- Main App ---
@@ -230,25 +249,25 @@ def main():
     with st.spinner("Loading data..."):
         df_election = load_csv_data(CSV_FILE)
         
+        # Always load default districts
+        gdf_districts = load_kml_data(KML_FILE)
+        
         # KML uploader
         st.sidebar.markdown("---")
         st.sidebar.header("Data Source")
         uploaded_kml = st.sidebar.file_uploader("Upload KML File (Optional)", type=['kml'])
         
-        kml_path_to_use = KML_FILE
+        gdf_uploaded = None
         if uploaded_kml is not None:
-            # Save uploaded file temporarily because GeoPandas needs a path
-            # or we need to handle bytes directly (which load_kml_data logic handles via fallback, but path is safer for fiona)
             try:
                 temp_filename = "temp_uploaded.kml"
                 with open(temp_filename, "wb") as f:
                     f.write(uploaded_kml.getbuffer())
-                kml_path_to_use = temp_filename
-                st.sidebar.success(f"Using uploaded KML: {uploaded_kml.name}")
+                
+                st.sidebar.success(f"Uploaded: {uploaded_kml.name}")
+                gdf_uploaded = load_kml_data(temp_filename)
             except Exception as e:
                 st.sidebar.error(f"Error saving uploaded KML: {e}")
-        
-        gdf_districts = load_kml_data(kml_path_to_use)
 
     # Pre-process Data for Map
     df_votes_by_district = pd.DataFrame()
@@ -258,70 +277,114 @@ def main():
     if gdf_districts is not None and not gdf_districts.empty:
         # Extract sub-district name for merging
         gdf_districts['sub_district_name'] = gdf_districts.apply(lambda row: extract_subdistrict_name(row, gdf_districts.columns), axis=1)
+        gdf_districts['amphoe_name'] = gdf_districts.apply(lambda row: extract_amphoe_name(row, gdf_districts.columns), axis=1)
         
         # Merge with election data if available
         if not df_votes_by_district.empty:
             gdf_districts = gdf_districts.merge(
-                df_votes_by_district[['ตำบล', 'Winner', 'Winner_Pct']], 
+                df_votes_by_district,
                 left_on='sub_district_name', 
                 right_on='ตำบล', 
                 how='left'
             )
-            # Fill NaN Winner with "Unknown"
-            gdf_districts['Winner'] = gdf_districts['Winner'].fillna("Unknown")
-            gdf_districts['Winner_Pct'] = gdf_districts['Winner_Pct'].fillna(0)
+            # Fill NaN Winner with "Unknown" and 0 for logic processing but keep NaNs for display where appropriate
+            if 'Winner' in gdf_districts.columns:
+                 gdf_districts['Winner'] = gdf_districts['Winner'].fillna("Unknown")
+            if 'Winner_Pct' in gdf_districts.columns:
+                 gdf_districts['Winner_Pct'] = gdf_districts['Winner_Pct'].fillna(0)
 
     # Create Tabs
     tab_overview, tab_analysis = st.tabs(["Overview", "Analysis Details"])
     
     with tab_overview:
         if gdf_districts is not None and not gdf_districts.empty:
-            st.sidebar.success(f"Loaded {len(gdf_districts)} features from KML")
-            # Helper to safely get KML columns
-            # KML usually loads with 'Name' and 'Description' (often containing HTML table of attributes)
-            # We need to parse 'T_NAME_T' and 'A_NAME_T' from that Description HTML if they aren't columns.
-        
+            st.sidebar.success(f"Loaded {len(gdf_districts)} sub-districts")
+            
+            # Helper to safely get KML columns - for default districts
             kml_cols = gdf_districts.columns
             name_col = next((c for c in kml_cols if c.lower() == 'name'), None)
             desc_col = next((c for c in kml_cols if c.lower() == 'description'), None)
         
-            def get_kml_html(row):
-                # 1. Try direct column access (if geopandas loaded it nicely)
-                t_val = row.get('T_NAME_T', None)
-                a_val = row.get('A_NAME_T', None)
-            
-                # 2. If not found, try parsing 'description' (fallback or fastkml result)
-                desc_html = str(row[desc_col]) if desc_col else ""
-            
-                if not t_val and desc_html:
-                    # Regex to find: <td>T_NAME_T</td><td>Value</td> or similar
-                    # Handling flexible whitespace and casing
-                    match = re.search(r"<td>T_NAME_T</td>\s*<td>(.*?)</td>", desc_html, re.IGNORECASE)
-                    if match:
-                        t_val = match.group(1).strip()
+            def get_subdistrict_tooltip(row):
+                # 1. Title: Sub-district Name
+                t_val = row.get('sub_district_name', 'Sub-district')
+                a_val = row.get('amphoe_name', '') # Amphoe name from extracted column
                 
-                # Use the pre-calculated column if available (logic duplication reduction)
-                if row.get('sub_district_name'):
-                     t_val = row.get('sub_district_name')
-            
-                if not a_val and desc_html:
-                    match = re.search(r"<td>A_NAME_T</td>\s*<td>(.*?)</td>", desc_html, re.IGNORECASE)
-                    if match:
-                        a_val = match.group(1).strip()
-            
-                # Default fallbacks if extraction failed
-                title = t_val if t_val else (row[name_col] if name_col else "Sub-district")
-                body = a_val if a_val else ""
-            
-                return f"<b>ต.{title}</b><br/>อ.{body}"
+                header = f"<b>ต.{t_val}</b>"
+                if a_val:
+                    header += f"<br/>อ.{a_val}"
+                header += "<hr style='margin: 5px 0;'/>"
+
+                # 2. Check if we have election data
+                if pd.isna(row.get('ตำบล')):
+                    return header + "<i>No election data available</i>"
+
+                # 3. Summary Stats
+                # Users want to see: Eligible, Turnout, % Turnout
+                eligible = row.get('ผู้มีสิทธิ์', 0)
+                turnout = row.get('ผู้มาใช้สิทธิ์', 0)
+                pct_turnout = row.get('เปอร์เซ็นต์ใช้สิทธิ์', 0)
+
+                stats_html = f"""
+                <div style='font-size: 12px; margin-bottom: 8px;'>
+                    <b>ผู้มีสิทธิ์:</b> {int(eligible) if pd.notna(eligible) else 0:,}<br/>
+                    <b>ผู้มาใช้สิทธิ์:</b> {int(turnout) if pd.notna(turnout) else 0:,} ({pct_turnout:.2f}%)
+                </div>
+                """
+
+                # 4. Vote Chart (Top 5)
+                vote_columns = [
+                    "ก้าวไกล", "ชาติพัฒนากล้า", "ชาติไทยพัฒนา", "ประชาชาติ", 
+                    "ประชาธิปัตย์", "พลังประชารัฐ", "ภูมิใจไทย", "รวมไทยสร้างชาติ", 
+                    "เพื่อไทย", "เสรีรวมไทย", "ไทยสร้างไทย"
+                ]
+                
+                votes = {}
+                for col in vote_columns:
+                    val = row.get(col, 0)
+                    if pd.notna(val):
+                        votes[col] = val
+                
+                max_vote = max(votes.values()) if votes and max(votes.values()) > 0 else 1
+                sorted_votes = sorted(votes.items(), key=lambda item: item[1], reverse=True)[:5]
+                
+                chart_rows = []
+                for col, val in sorted_votes:
+                    bar_width = (val / max_vote) * 100
+                    bar_color = '#4CAF50' 
+                    if 'เพื่อไทย' in col: bar_color = '#E60000'
+                    if 'ก้าวไกล' in col: bar_color = '#F47920'
+                    if 'รวมไทยสร้างชาติ' in col: bar_color = '#4CAF50'
+                    if 'พลังประชารัฐ' in col: bar_color = '#4CAF50'
+                    if 'ภูมิใจไทย' in col: bar_color = '#00366F'
+                    
+                    chart_rows.append(f"""
+                    <tr>
+                        <td style='width: 30%; font-size: 10px; padding-right:5px; white-space:nowrap;'>{col}</td>
+                        <td style='width: 15%; font-size: 10px; text-align:right; padding-right:5px;'>{int(val)}</td>
+                        <td style='width: 55%;'>
+                            <div style='background-color: #ddd; width: 100%; height: 8px; border-radius: 2px;'>
+                                <div style='background-color: {bar_color}; width: {bar_width}%; height: 100%; border-radius: 2px;'></div>
+                            </div>
+                        </td>
+                    </tr>
+                    """)
+                
+                chart_table = f"<table style='width:100%; border-collapse: collapse;'>{''.join(chart_rows)}</table>"
+                
+                return header + stats_html + chart_table
         
-            gdf_districts['tooltip_html'] = gdf_districts.apply(get_kml_html, axis=1)
+            gdf_districts['tooltip_html'] = gdf_districts.apply(get_subdistrict_tooltip, axis=1)
 
         else:
-            st.sidebar.warning("Failed to load KML polygons")
+            st.sidebar.warning("Failed to load default KML polygons")
+
+        if gdf_uploaded is not None and not gdf_uploaded.empty:
+             st.sidebar.success(f"Loaded {len(gdf_uploaded)} features from Uploaded KML")
 
         if not df_election.empty:
              st.sidebar.success(f"Loaded {len(df_election)} points from CSV")
+
          
              # Prepare Election Tooltip HTML
              def get_election_html(row):
@@ -410,6 +473,9 @@ def main():
         st.sidebar.header("Layer Controls")
         show_districts = st.sidebar.checkbox("Show Sub-districts (KML)", value=True)
         show_winner = st.sidebar.checkbox("Show Winner (Sub-district)", value=False)
+        show_uploaded = False
+        if gdf_uploaded is not None:
+            show_uploaded = st.sidebar.checkbox("Show Uploaded KML", value=True)
         show_points = st.sidebar.checkbox("Show Election Points (CSV)", value=True)
     
         st.sidebar.markdown("---")
@@ -463,6 +529,21 @@ def main():
                 highlight_color=[0, 0, 255, 128], # Blue highlight
             )
             layers.append(layer_districts)
+
+        # 2b. Uploaded Layer
+        if show_uploaded and gdf_uploaded is not None:
+             layer_uploaded = pdk.Layer(
+                "GeoJsonLayer",
+                gdf_uploaded,
+                opacity=1.0,
+                stroked=True,
+                filled=False, 
+                get_line_color=[255, 80, 0, 255], # Deep Orange/Red-Orange lines for uploaded contours/lines
+                get_line_width=30,
+                lineWidthMinPixels=2,
+                pickable=False,
+            )
+             layers.append(layer_uploaded)
 
         if show_winner and gdf_districts is not None and 'Winner' in gdf_districts.columns:
             # 3. Winner Layer
@@ -566,6 +647,15 @@ def main():
         )
     
         st.pydeck_chart(r)
+        
+        # Legend (Only if Winner layer is active)
+        if show_winner:
+            st.markdown("""
+            **Winning Percentage Intensity:**
+            *   **> 45%**: High Intensity
+            *   **30% - 45%**: Medium Intensity
+            *   **< 30%**: Low Intensity
+            """)
     
         # Comments / Annotation Section
         st.markdown("---")
