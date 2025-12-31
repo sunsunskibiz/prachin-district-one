@@ -257,17 +257,37 @@ def main():
         st.sidebar.header("Data Source")
         uploaded_kml = st.sidebar.file_uploader("Upload KML File (Optional)", type=['kml'])
         
-        gdf_uploaded = None
+        # Initialize session state for KML layers if not present
+        if 'kml_layers' not in st.session_state:
+            st.session_state['kml_layers'] = {}
+
         if uploaded_kml is not None:
-            try:
-                temp_filename = "temp_uploaded.kml"
-                with open(temp_filename, "wb") as f:
-                    f.write(uploaded_kml.getbuffer())
-                
-                st.sidebar.success(f"Uploaded: {uploaded_kml.name}")
-                gdf_uploaded = load_kml_data(temp_filename)
-            except Exception as e:
-                st.sidebar.error(f"Error saving uploaded KML: {e}")
+            # Check if this specific file is already loaded to avoid re-processing or duplicates if desirable
+            # However, if user re-uploads same file name with different content, we might want to reload.
+            # But standard behavior for "Stacking" usually implies unique names or just append.
+            # Let's use filename as key.
+            if uploaded_kml.name not in st.session_state['kml_layers']:
+                try:
+                    # Save to temp file
+                    temp_filename = f"temp_{uploaded_kml.name}"
+                    with open(temp_filename, "wb") as f:
+                        f.write(uploaded_kml.getbuffer())
+                    
+                    st.sidebar.info(f"Processing: {uploaded_kml.name}...")
+                    gdf_new = load_kml_data(temp_filename)
+                    
+                    if gdf_new is not None and not gdf_new.empty:
+                        st.session_state['kml_layers'][uploaded_kml.name] = gdf_new
+                        st.sidebar.success(f"Added: {uploaded_kml.name}")
+                    else:
+                         st.sidebar.warning(f"Could not load features from {uploaded_kml.name}")
+                    
+                    # Cleanup temp file
+                    if os.path.exists(temp_filename):
+                        os.remove(temp_filename)
+                        
+                except Exception as e:
+                    st.sidebar.error(f"Error processing {uploaded_kml.name}: {e}")
 
     # Pre-process Data for Map
     df_votes_by_district = pd.DataFrame()
@@ -379,8 +399,9 @@ def main():
         else:
             st.sidebar.warning("Failed to load default KML polygons")
 
-        if gdf_uploaded is not None and not gdf_uploaded.empty:
-             st.sidebar.success(f"Loaded {len(gdf_uploaded)} features from Uploaded KML")
+        if st.session_state['kml_layers']:
+             total_features = sum(len(gdf) for gdf in st.session_state['kml_layers'].values())
+             st.sidebar.success(f"Loaded {len(st.session_state['kml_layers'])} files ({total_features} features)")
 
         if not df_election.empty:
              st.sidebar.success(f"Loaded {len(df_election)} points from CSV")
@@ -473,9 +494,19 @@ def main():
         st.sidebar.header("Layer Controls")
         show_districts = st.sidebar.checkbox("Show Sub-districts (KML)", value=True)
         show_winner = st.sidebar.checkbox("Show Winner (Sub-district)", value=False)
-        show_uploaded = False
-        if gdf_uploaded is not None:
-            show_uploaded = st.sidebar.checkbox("Show Uploaded KML", value=True)
+        
+        # Dynamic Controls for Uploaded Layers
+        active_uploaded_layers = []
+        if st.session_state['kml_layers']:
+            st.sidebar.markdown("**Uploaded Layers:**")
+            for name in st.session_state['kml_layers'].keys():
+                if st.sidebar.checkbox(f"Show {name}", value=True):
+                    active_uploaded_layers.append(name)
+            
+            if st.sidebar.button("Clear All Uploaded Layers"):
+                st.session_state['kml_layers'] = {}
+                st.rerun()
+        
         show_points = st.sidebar.checkbox("Show Election Points (CSV)", value=True)
     
         st.sidebar.markdown("---")
@@ -530,20 +561,23 @@ def main():
             )
             layers.append(layer_districts)
 
-        # 2b. Uploaded Layer
-        if show_uploaded and gdf_uploaded is not None:
-             layer_uploaded = pdk.Layer(
-                "GeoJsonLayer",
-                gdf_uploaded,
-                opacity=1.0,
-                stroked=True,
-                filled=False, 
-                get_line_color=[255, 80, 0, 255], # Deep Orange/Red-Orange lines for uploaded contours/lines
-                get_line_width=30,
-                lineWidthMinPixels=2,
-                pickable=False,
-            )
-             layers.append(layer_uploaded)
+        # 2b. Uploaded Layers (Stacked)
+        for name in active_uploaded_layers:
+             gdf_layer = st.session_state['kml_layers'].get(name)
+             if gdf_layer is not None:
+                 layer_uploaded = pdk.Layer(
+                    "GeoJsonLayer",
+                    gdf_layer,
+                    id=f"layer-{name}", # Unique ID for pydeck
+                    opacity=1.0,
+                    stroked=True,
+                    filled=False, 
+                    get_line_color=[255, 80, 0, 255], # Deep Orange
+                    get_line_width=30,
+                    lineWidthMinPixels=2,
+                    pickable=False,
+                )
+                 layers.append(layer_uploaded)
 
         if show_winner and gdf_districts is not None and 'Winner' in gdf_districts.columns:
             # 3. Winner Layer
