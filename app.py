@@ -1,19 +1,20 @@
 import streamlit as st
 import pandas as pd
-import geopandas as gpd
 import pydeck as pdk
-from fastkml import kml
-from typing import Optional
-import os
-import re
-from google.cloud import storage
+import time
 import logging
 import sys
+import os
+
+# Import from new utils
+from utils.constants import CSV_FILE, KML_FILE, GCS_BUCKET_NAME
+from utils.geo_utils import create_mask_polygon, extract_subdistrict_name, extract_amphoe_name
+from utils.data_utils import load_comments, save_comment, load_csv_data, load_kml_data, calculate_votes_by_subdistrict
+from utils.gcs_utils import list_gcs_kml_files, upload_to_gcs, load_kml_from_gcs, get_gcs_client
 
 # --- Logging Config ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s', stream=sys.stdout)
 logger = logging.getLogger(__name__)
-from google.cloud import storage
 
 # --- Page Config ---
 st.set_page_config(
@@ -22,407 +23,11 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- Constants ---
-CSV_FILE = "คะแนนเลือกตั้ง_ปราจีนบุรี_เขต1_แบ่งเขต.csv"
-KML_FILE = "แผนที่หาเสียงปราจีนบุรี.kml"
-COMMENTS_FILE = "comments.csv"
-GCS_BUCKET_NAME = os.environ.get("GCS_BUCKET_NAME", "prachin-voter-kml-storage")
-GCS_BUCKET_NAME = os.environ.get("GCS_BUCKET_NAME", "prachin-voter-kml-storage")
-
 # --- Heartbeat Debug ---
-import time
 st.sidebar.markdown(f"**Server Time:** `{time.strftime('%H:%M:%S')}`")
 if 'init_time' not in st.session_state:
     st.session_state['init_time'] = time.time()
 st.sidebar.caption(f"Session Age: {int(time.time() - st.session_state['init_time'])}s")
-
-# --- Data Loading ---
-
-def load_comments() -> list:
-    """Loads comments from CSV file."""
-    if os.path.exists(COMMENTS_FILE):
-        try:
-            df = pd.read_csv(COMMENTS_FILE)
-            return df.to_dict('records')
-        except Exception as e:
-            st.error(f"Error loading comments: {e}")
-            return []
-    return []
-
-def save_comment(comment: dict):
-    """Saves a single comment to CSV file."""
-    try:
-        df_new = pd.DataFrame([comment])
-        if os.path.exists(COMMENTS_FILE):
-            df_new.to_csv(COMMENTS_FILE, mode='a', header=False, index=False)
-        else:
-            df_new.to_csv(COMMENTS_FILE, mode='w', header=True, index=False)
-    except Exception as e:
-        st.error(f"Error saving comment: {e}")
-
-@st.cache_data
-def load_csv_data(filepath: str) -> pd.DataFrame:
-    """Loads election data from CSV."""
-    if not os.path.exists(filepath):
-        st.error(f"File not found: {filepath}")
-        return pd.DataFrame()
-    
-    try:
-        df = pd.read_csv(filepath)
-        # Verify required columns exist
-        required = ['latitude', 'longitude']
-        if not all(col in df.columns for col in required):
-            st.error(f"CSV missing required columns: {required}")
-            return pd.DataFrame()
-        return df
-    except Exception as e:
-        st.error(f"Error loading CSV: {e}")
-        return pd.DataFrame()
-
-@st.cache_data
-def load_kml_data(filepath: str) -> Optional[gpd.GeoDataFrame]:
-    """Loads sub-district polygons from KML."""
-    if not os.path.exists(filepath):
-        st.error(f"File not found: {filepath}")
-        return None
-    
-    # Try loading with geopandas directly (uses fiona/gdal)
-    try:
-        # Prioritize specific layers that sound like sub-district boundaries
-        target_layers = ['เส้นแบ่งตำบล ปราจีนบุรี', 'Prachin Buri', 'ปราจีนเขต1', 'เขต 1']
-        
-        # We need to find available layers first to avoid errors
-        import fiona
-        available_layers = fiona.listlayers(filepath)
-        
-        selected_layer = None
-        for target in target_layers:
-            if target in available_layers:
-                selected_layer = target
-                break
-        
-        # If no target found, use the first one (default)
-        if not selected_layer and available_layers:
-            selected_layer = available_layers[0]
-            
-        if selected_layer:
-            gdf = gpd.read_file(filepath, layer=selected_layer)
-            # Ensure we have some description field for the tooltip
-            if 'Description' not in gdf.columns and 'description' not in gdf.columns:
-                 gdf['description'] = gdf['Name'] if 'Name' in gdf.columns else "No details"
-            return gdf
-            
-        return None
-
-    except Exception as e:
-        # Fallback manual parsing if GDAL driver issues
-        # Using fastkml as requested/fallback
-        try:
-            with open(filepath, 'rb') as f:
-                doc = f.read()
-            k = kml.KML()
-            k.from_string(doc)
-            
-            features = []
-            # Recursive function to find features
-            def extract_features(folder):
-                if hasattr(folder, 'features'):
-                    for feat in folder.features():
-                        if hasattr(feat, 'geometry'):
-                            features.append({
-                                'geometry': feat.geometry,
-                                'name': feat.name,
-                                'description': feat.description
-                            })
-                        extract_features(feat)
-            
-            extract_features(k)
-            
-            if features:
-                 # Convert to GeoDataFrame
-                from shapely.geometry import shape
-                # Note: fastkml geometries are already shapely-like or convert easily
-                # specific handling might be needed depending on fastkml version
-                # But let's assume standard object structure for now or defer to library
-                gdf = gpd.GeoDataFrame(features)
-                return gdf
-            
-        except Exception as e2:
-            st.error(f"Error loading KML: {e} | Fallback error: {e2}")
-            return None
-
-
-def create_mask_polygon(gdf: gpd.GeoDataFrame) -> Optional[gpd.GeoDataFrame]:
-    """Creates a polygon covering the area OUTSIDE the given GeoDataFrame."""
-    if gdf is None or gdf.empty:
-        return None
-    
-    # Check if we have polygons. If only lines/points, masking the world excluding them makes no sense (still full world).
-    has_polygons = any(geom.geom_type in ('Polygon', 'MultiPolygon') for geom in gdf.geometry)
-    if not has_polygons:
-        return None
-
-    try:
-        from shapely.geometry import box
-        
-        # Create a large bounding box (covering the world or a sufficient area)
-        # User wants "gray out the area that not in the blue polygon".
-        world_box = box(-180, -90, 180, 90)
-        
-        # Merge all districts into one shape
-        # shapely 2.0 recommends union_all(), older uses unary_union
-        try:
-             unified_geom = gdf.geometry.union_all()
-        except AttributeError:
-             unified_geom = gdf.geometry.unary_union
-             
-        # Calculate difference: World - Districts
-        mask_geom = world_box.difference(unified_geom)
-        
-        return gpd.GeoDataFrame(geometry=[mask_geom], crs=gdf.crs)
-    except Exception as e:
-        st.error(f"Error creating mask: {e}")
-        return None
-
-def extract_subdistrict_name(row, kml_cols):
-    """Extracts sub-district name from KML data."""
-    name_col = next((c for c in kml_cols if c.lower() == 'name'), None)
-    desc_col = next((c for c in kml_cols if c.lower() == 'description'), None)
-    
-    t_val = row.get('T_NAME_T', None)
-    
-    # If not found, try parsing 'description'
-    desc_html = str(row[desc_col]) if desc_col else ""
-    
-    if not t_val and desc_html:
-        match = re.search(r"<td>T_NAME_T</td>\s*<td>(.*?)</td>", desc_html, re.IGNORECASE)
-        if match:
-            t_val = match.group(1).strip()
-            
-    # Fallback to Name if still not found, or "Unknown"
-    if not t_val:
-         t_val = row[name_col] if name_col else "Unknown"
-         
-    return t_val
-
-def extract_amphoe_name(row, kml_cols):
-    """Extracts amphoe name from KML data."""
-    desc_col = next((c for c in kml_cols if c.lower() == 'description'), None)
-    
-    a_val = row.get('A_NAME_T', None)
-    
-    # If not found, try parsing 'description'
-    desc_html = str(row[desc_col]) if desc_col else ""
-    
-    if not a_val and desc_html:
-        match = re.search(r"<td>A_NAME_T</td>\s*<td>(.*?)</td>", desc_html, re.IGNORECASE)
-        if match:
-            a_val = match.group(1).strip()
-            
-    return a_val if a_val else ""
-
-# --- GCS Helpers ---
-
-def get_gcs_client():
-    try:
-        from google.auth.exceptions import DefaultCredentialsError
-        client = storage.Client()
-        return client
-    except Exception as e:
-        # Don't spam error here, just return None. The caller will handle fallback.
-        logger.warning(f"GCS Client not available (likely local mode): {e}")
-        return None
-
-def list_gcs_kml_files(bucket_name):
-    """Lists all KML files in the bucket."""
-    logger.info(f"Listing files in bucket: {bucket_name}")
-    client = get_gcs_client()
-    if not client: return []
-    try:
-        bucket = client.bucket(bucket_name)
-        # Check if bucket exists (Optional, can be skipped to save latency/perms)
-        # if not bucket.exists():
-        #    logger.warning(f"Bucket {bucket_name} does not exist or not accessible.")
-        #    return []
-        blobs = list(bucket.list_blobs()) # Force iteration to check connectivity
-        kml_files = [blob.name for blob in blobs if blob.name.lower().endswith('.kml')]
-        logger.info(f"Found {len(kml_files)} KML files: {kml_files}")
-        return kml_files
-    except Exception as e:
-        logger.error(f"Error listing GCS files: {e}")
-        st.sidebar.error(f"Error listing GCS files: {e}")
-        return []
-
-def upload_to_gcs(file_obj, bucket_name, destination_blob_name):
-    """Uploads a file object to the bucket OR local temp if GCS unavailable."""
-    logger.info(f"Attempting to upload {destination_blob_name}...")
-    client = get_gcs_client()
-    
-    # --- LOCAL FALLBACK ---
-    if not client:
-        logger.info("GCS unavailable. Using local temporary storage.")
-        local_dir = "/tmp/local_uploads"
-        if not os.path.exists(local_dir):
-            os.makedirs(local_dir)
-        
-        local_path = os.path.join(local_dir, destination_blob_name)
-        try:
-            with open(local_path, "wb") as f:
-                f.write(file_obj.getvalue())
-            logger.info(f"Saved locally to {local_path}")
-            return True
-        except Exception as e:
-            st.error(f"Local save failed: {e}")
-            return False
-    # ----------------------
-
-    try:
-        bucket = client.bucket(bucket_name)
-        
-        # Diagnostics proved upload_from_string works, so let's stick to that.
-        blob = bucket.blob(destination_blob_name)
-        
-        # Read bytes from Streamlit UploadedFile
-        data = file_obj.getvalue()
-        blob.upload_from_string(data, content_type='application/vnd.google-earth.kml+xml')
-        
-        logger.info(f"Successfully uploaded {destination_blob_name} to GCS (Size: {len(data)} bytes).")
-        return True
-    except Exception as e:
-        logger.error(f"Error uploading to GCS: {e}")
-        st.sidebar.error(f"Error uploading to GCS: {e}")
-        return False
-
-def load_kml_from_gcs(bucket_name, blob_name):
-    """Downloads KML from GCS (or local temp) to a temp file and queues it for loading."""
-    logger.info(f"Loading {blob_name}...")
-    client = get_gcs_client()
-    
-    # --- LOCAL FALLBACK ---
-    if not client:
-        local_path = os.path.join("/tmp/local_uploads", blob_name)
-        if os.path.exists(local_path):
-             logger.info(f"Loading from local path: {local_path}")
-             return load_kml_data(local_path)
-        else:
-             st.error(f"Local file not found: {local_path}")
-             return None
-    # ----------------------
-
-    try:
-        bucket = client.bucket(bucket_name)
-        blob = bucket.blob(blob_name)
-        
-        temp_filename = f"/tmp/temp_gcs_{blob_name}"
-        blob.download_to_filename(temp_filename)
-        logger.info(f"Downloaded {blob_name} to {temp_filename}")
-        
-        gdf = load_kml_data(temp_filename)
-        
-        if os.path.exists(temp_filename):
-            os.remove(temp_filename)
-            
-        return gdf
-    except Exception as e:
-        logger.error(f"Error loading {blob_name} from GCS: {e}")
-        st.error(f"Error loading {blob_name} from GCS: {e}")
-        return None
-
-# --- GCS Helpers ---
-
-@st.cache_resource
-def get_gcs_client():
-    try:
-        return storage.Client()
-    except Exception as e:
-        st.error(f"Failed to initialize GCS Client: {e}")
-        return None
-
-def list_gcs_kml_files(bucket_name):
-    """Lists all KML files in the bucket."""
-    client = get_gcs_client()
-    if not client: return []
-    try:
-        bucket = client.bucket(bucket_name)
-        blobs = bucket.list_blobs()
-        return [blob.name for blob in blobs if blob.name.lower().endswith('.kml')]
-    except Exception as e:
-        st.sidebar.error(f"Error listing GCS files: {e}")
-        return []
-
-def upload_to_gcs(file_obj, bucket_name, destination_blob_name):
-    """Uploads a file object to the bucket."""
-    client = get_gcs_client()
-    if not client: return False
-    try:
-        bucket = client.bucket(bucket_name)
-        blob = bucket.blob(destination_blob_name)
-        # Reset pointer just in case
-        file_obj.seek(0)
-        blob.upload_from_file(file_obj)
-        return True
-    except Exception as e:
-        st.sidebar.error(f"Error uploading to GCS: {e}")
-        return False
-
-def load_kml_from_gcs(bucket_name, blob_name):
-    """Downloads KML from GCS to a temp file and queues it for loading."""
-    client = get_gcs_client()
-    if not client: return None
-    try:
-        bucket = client.bucket(bucket_name)
-        blob = bucket.blob(blob_name)
-        
-        temp_filename = f"temp_gcs_{blob_name}"
-        blob.download_to_filename(temp_filename)
-        
-        gdf = load_kml_data(temp_filename)
-        
-        if os.path.exists(temp_filename):
-            os.remove(temp_filename)
-            
-        return gdf
-    except Exception as e:
-        st.error(f"Error loading {blob_name} from GCS: {e}")
-        return None
-
-def calculate_votes_by_subdistrict(df_election):
-    """Aggregates votes by sub-district and determines the winner."""
-    if df_election.empty or 'ตำบล' not in df_election.columns:
-        return pd.DataFrame()
-
-    numeric_cols = df_election.select_dtypes(include=['number']).columns
-    cols_to_drop = ['latitude', 'longitude', 'หน่วย']
-    cols_to_sum = [c for c in numeric_cols if c not in cols_to_drop]
-    
-    df_grouped = df_election.groupby('ตำบล')[cols_to_sum].sum().reset_index()
-    df_display = df_grouped.rename(columns=lambda x: x.replace('_แบ่งเขต', ''))
-    
-    # Calculate Percentage for Turnout
-    if 'ผู้มีสิทธิ์' in df_display.columns and 'ผู้มาใช้สิทธิ์' in df_display.columns:
-        df_display['เปอร์เซ็นต์ใช้สิทธิ์'] = (df_display['ผู้มาใช้สิทธิ์'] / df_display['ผู้มีสิทธิ์']) * 100
-
-    # Calculate Winner
-    party_cols = [
-        "ก้าวไกล", "ชาติพัฒนากล้า", "ชาติไทยพัฒนา", "ประชาชาติ", 
-        "ประชาธิปัตย์", "พลังประชารัฐ", "ภูมิใจไทย", "รวมไทยสร้างชาติ", 
-        "เพื่อไทย", "เสรีรวมไทย", "ไทยสร้างไทย"
-    ]
-    existing_parties = [p for p in party_cols if p in df_display.columns]
-    
-    if existing_parties:
-        df_display['Winner'] = df_display[existing_parties].idxmax(axis=1)
-        
-        # Calculate Winner Votes and Percentage
-        df_display['Winner_Votes'] = df_display[existing_parties].max(axis=1)
-        if 'ผู้มาใช้สิทธิ์' in df_display.columns:
-             df_display['Winner_Pct'] = (df_display['Winner_Votes'] / df_display['ผู้มาใช้สิทธิ์'].replace(0, 1)) * 100
-        else:
-             df_display['Winner_Pct'] = 0
-
-    return df_display
-
-# --- Main App ---
 
 def main():
     st.title("Dashboard of Prachinburi District 1")
@@ -433,11 +38,6 @@ def main():
         
         # Always load default districts
         gdf_districts = load_kml_data(KML_FILE)
-        
-        # --- System Diagnostics (Removed for Performance) ---
-        # if 'run_count' not in st.session_state: st.session_state['run_count'] = 0
-        # st.session_state['run_count'] += 1
-
 
         # KML uploader
         st.sidebar.markdown("---")
@@ -460,66 +60,63 @@ def main():
         uploaded_kml = st.sidebar.file_uploader("Upload KML File (Optional)", type=['kml'], key="kml_upload_widget")
         
         if uploaded_kml is not None:
-            # 1. Show File Details immediately
-            st.sidebar.markdown(f"""
-            **File Detected:**
-            - Name: `{uploaded_kml.name}`
-            - Size: `{uploaded_kml.size / 1024:.2f} KB`
-            """)
-            
-            # 2. Step 1: Upload to Cloud (Safe)
-            if st.sidebar.button("1. Upload to Cloud ☁️", key="btn_upload_only"):
-                st.sidebar.info("⏳ Uploading bytes to GCS...")
-                try:
-                    safe_name = uploaded_kml.name.replace(" ", "_")
-                    success = upload_to_gcs(uploaded_kml, GCS_BUCKET_NAME, safe_name)
-                    
-                    if success:
-                        st.sidebar.success(f"✅ Upload Success: {safe_name}")
-                        
-                        # Verify it exists (Check LOCAL or GCS)
-                        client = get_gcs_client()
-                        if client:
-                            bucket = client.bucket(GCS_BUCKET_NAME)
-                            blob = bucket.blob(safe_name)
-                            exists = blob.exists()
-                            loc_msg = f"in GCS bucket {GCS_BUCKET_NAME}"
-                        else:
-                            # Verify local
-                            exists = os.path.exists(os.path.join("/tmp/local_uploads", safe_name))
-                            loc_msg = "in local_uploads (Offline Mode)"
+             # Auto-Process Logic
+             file_id = f"{uploaded_kml.name}_{uploaded_kml.size}"
+             
+             if file_id not in st.session_state.get('processed_uploads', []):
+                 if 'processed_uploads' not in st.session_state: st.session_state['processed_uploads'] = []
+                 
+                 st.sidebar.info(f"Processing {uploaded_kml.name}...")
+                 safe_name = uploaded_kml.name.replace(" ", "_")
+                 
+                 # 1. Determine Environment (Cloud vs Local)
+                 client = get_gcs_client()
+                 
+                 if client:
+                     # --- CLOUD MODE (GCS) ---
+                     success = upload_to_gcs(uploaded_kml, GCS_BUCKET_NAME, safe_name)
+                     if success:
+                         st.sidebar.success(f"☁️ Uploaded to GCS!")
+                         # Auto-Visualize
+                         try:
+                             gdf_new = load_kml_from_gcs(GCS_BUCKET_NAME, safe_name)
+                             if gdf_new is not None and not gdf_new.empty:
+                                 st.session_state['kml_layers'][safe_name] = gdf_new
+                                 st.success(f"✅ Visualized: {safe_name}")
+                                 st.session_state['processed_uploads'].append(file_id)
+                                 st.rerun()
+                             else:
+                                 st.sidebar.error("Parsed KML is empty.")
+                         except Exception as e:
+                             st.sidebar.error(f"Visualization Failed: {e}")
+                     else:
+                         st.sidebar.error("GCS Upload Failed.")
+                         
+                 else:
+                     # --- LOCAL MODE (Session Only) ---
+                     try:
+                         # Save to temp for processing
+                         temp_path = os.path.join("/tmp", safe_name)
+                         with open(temp_path, "wb") as f:
+                             f.write(uploaded_kml.getbuffer())
+                             
+                         # Parse directly
+                         st.sidebar.info("Parsing locally...")
+                         gdf_new = load_kml_data(temp_path)
+                         if gdf_new is not None and not gdf_new.empty:
+                             st.session_state['kml_layers'][safe_name] = gdf_new
+                             st.sidebar.success(f"🏠 Loaded locally: {safe_name}")
+                             st.session_state['processed_uploads'].append(file_id)
+                             st.rerun()
+                         else:
+                             st.sidebar.error("Local parse failed.")
+                     except Exception as e:
+                         st.sidebar.error(f"Local Processing Error: {e}")
 
-                        if exists:
-                           st.sidebar.success(f"Verified: File exists {loc_msg}")
-                           # Flag state to allow visualization
-                           st.session_state['last_uploaded_gcs_path'] = safe_name
-                        else:
-                           st.sidebar.error(f"❌ Uploaded but file not found {loc_msg}!")
-                    else:
-                        st.sidebar.error("❌ Upload returned False.")
-                except Exception as e:
-                    st.sidebar.error(f"Upload Crash: {e}")
+             else:
+                 st.sidebar.success(f"✅ Loaded: {uploaded_kml.name}")
+                 st.sidebar.caption("File already processed.")
 
-            # 3. Step 2: Visualize (Potentially Risky)
-            if 'last_uploaded_gcs_path' in st.session_state:
-                target_file = st.session_state['last_uploaded_gcs_path']
-                st.sidebar.markdown(f"**Ready to View:** `{target_file}`")
-                
-                if st.sidebar.button(f"2. Visualize {target_file} 🗺️", key="btn_visualize"):
-                    st.sidebar.text(f"Downloading & Parsing {target_file}...")
-                    try:
-                        gdf_new = load_kml_from_gcs(GCS_BUCKET_NAME, target_file)
-                        if gdf_new is not None and not gdf_new.empty:
-                            st.session_state['kml_layers'][target_file] = gdf_new
-                            st.sidebar.success("✅ Layer Added! (Check Layer Controls)")
-                            st.rerun()
-                        else:
-                            st.sidebar.error("❌ Parsing failed (Result is empty/None).")
-                    except Exception as e:
-                        st.sidebar.error(f"❌ CRITICAL PARSING CRASH: {e}")
-                        
-        else:
-            st.sidebar.caption("Waiting for file selection...")
 
     # Pre-process Data for Map
     df_votes_by_district = pd.DataFrame()
@@ -560,12 +157,8 @@ def main():
                 show_points = True # Force show points on map if user is searching
 
         if gdf_districts is not None and not gdf_districts.empty:
-            st.sidebar.success(f"Loaded {len(gdf_districts)} sub-districts")
-            
             # Helper to safely get KML columns - for default districts
             kml_cols = gdf_districts.columns
-            name_col = next((c for c in kml_cols if c.lower() == 'name'), None)
-            desc_col = next((c for c in kml_cols if c.lower() == 'description'), None)
         
             def get_subdistrict_tooltip(row):
                 # 1. Title: Sub-district Name
@@ -646,9 +239,6 @@ def main():
              st.sidebar.success(f"Loaded {len(st.session_state['kml_layers'])} files ({total_features} features)")
 
         if not df_election.empty:
-             st.sidebar.success(f"Loaded {len(df_election)} points from CSV")
-
-         
              # Prepare Election Tooltip HTML
              def get_election_html(row):
                 # General Info Columns
@@ -720,7 +310,7 @@ def main():
                         </td>
                     </tr>
                     """)
-            
+                
                 chart_header = "<div style='font-size: 12px; font-weight: bold; margin-bottom: 2px;'>Vote Counts</div>"
                 chart_table = f"<table style='width:100%; border-collapse: collapse;'>{''.join(chart_rows)}</table>"
             
@@ -759,8 +349,6 @@ def main():
             index=1
         )
         
-
-    
         # Map Style Mapping
         map_styles = {
             "Satellite": "mapbox://styles/mapbox/satellite-v9",
@@ -826,8 +414,6 @@ def main():
         if show_winner and gdf_districts is not None and 'Winner' in gdf_districts.columns:
             # 3. Winner Layer
             # Define Color Function logic for Pydeck
-            # We need to map Winner string to Color [R, G, B, A]
-            
             def get_winner_color(row):
                 winner = row.get('Winner', '')
                 pct = row.get('Winner_Pct', 0)
@@ -902,8 +488,6 @@ def main():
         if not df_election.empty:
             # Dynamic Zoom Logic
             # If we are validly filtered to a single point (or very few), zoom in close.
-            # If we show all data (len > 100 usually), zoom out.
-            
             row_count = len(df_election)
             
             # Default zoom
@@ -1009,44 +593,8 @@ def main():
         st.header("Analysis Details: Aggregated by Sub-district (ตำบล)")
         
         if not df_election.empty:
-            # Group by 'ตำบล' and sum numeric columns
-            # We filter for only numeric columns for summation to avoid errors
-            numeric_cols = df_election.select_dtypes(include=['number']).columns
-            # Ensure 'ตำบล' is preserved or we verify it exists
-            if 'ตำบล' in df_election.columns:
-                # Group by 'ตำบล'
-                # list(numeric_cols) includes latitude/longitude which we might not want to sum, but for "all data" maybe user wants specific cols.
-                # Usually we sum votes and eligible voters.
-                # Let's drop lat/long/unit number from sum if they exist, as summing them is meaningless
-                cols_to_drop = ['latitude', 'longitude', 'หน่วย']
-                cols_to_sum = [c for c in numeric_cols if c not in cols_to_drop]
-                
-                df_grouped = df_election.groupby('ตำบล')[cols_to_sum].sum().reset_index()
-                
-                # Optional: Clean up column names for display (remove _แบ่งเขต)
-                df_display = df_grouped.rename(columns=lambda x: x.replace('_แบ่งเขต', ''))
-
-                # Add percentage column
-                if 'ผู้มีสิทธิ์' in df_display.columns and 'ผู้มาใช้สิทธิ์' in df_display.columns:
-                    df_display['เปอร์เซ็นต์ใช้สิทธิ์'] = (df_display['ผู้มาใช้สิทธิ์'] / df_display['ผู้มีสิทธิ์']) * 100
-
-                # Calculate Winner
-                party_cols = [
-                    "ก้าวไกล", "ชาติพัฒนากล้า", "ชาติไทยพัฒนา", "ประชาชาติ", 
-                    "ประชาธิปัตย์", "พลังประชารัฐ", "ภูมิใจไทย", "รวมไทยสร้างชาติ", 
-                    "เพื่อไทย", "เสรีรวมไทย", "ไทยสร้างไทย"
-                ]
-                # Filter to only existing columns to be safe
-                existing_parties = [p for p in party_cols if p in df_display.columns]
-                
-                if existing_parties:
-                    df_display['Winner'] = df_display[existing_parties].idxmax(axis=1)
-                    
-                    # Calculate Winner Percentage
-                    winner_votes = df_display[existing_parties].max(axis=1)
-                    if 'ผู้มาใช้สิทธิ์' in df_display.columns:
-                         df_display['Winner Percentage'] = (winner_votes / df_display['ผู้มาใช้สิทธิ์'].replace(0, 1)) * 100
-
+            df_display = calculate_votes_by_subdistrict(df_election)
+            if not df_display.empty:
                 st.dataframe(df_display, use_container_width=True)
                 
                 # Show some metrics
@@ -1057,9 +605,8 @@ def main():
                 if total_voters > 0:
                     st.metric("Total Eligible Voters", f"{total_voters:,}")
                     st.metric("Total Turnout", f"{total_turnout:,}")
-
             else:
-                st.error("Column 'ตำบล' not found in data.")
+                 st.info("Aggregation returned empty results (check 'ตำบล' column).")
         else:
             st.info("No election data loaded.")
 
