@@ -6,6 +6,14 @@ from fastkml import kml
 from typing import Optional
 import os
 import re
+from google.cloud import storage
+import logging
+import sys
+
+# --- Logging Config ---
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s', stream=sys.stdout)
+logger = logging.getLogger(__name__)
+from google.cloud import storage
 
 # --- Page Config ---
 st.set_page_config(
@@ -18,6 +26,14 @@ st.set_page_config(
 CSV_FILE = "คะแนนเลือกตั้ง_ปราจีนบุรี_เขต1_แบ่งเขต.csv"
 KML_FILE = "แผนที่หาเสียงปราจีนบุรี.kml"
 COMMENTS_FILE = "comments.csv"
+GCS_BUCKET_NAME = os.environ.get("GCS_BUCKET_NAME", "prachin-voter-kml-storage")
+GCS_BUCKET_NAME = os.environ.get("GCS_BUCKET_NAME", "prachin-voter-kml-storage")
+
+# --- Heartbeat Debug ---
+import time
+st.sidebar.markdown(f"**Server Time:** `{time.strftime('%H:%M:%S')}`")
+if 'init_t  ime' not in st.session_state: st.session_state['init_time'] = time.time()
+st.sidebar.caption(f"Session Age: {int(time.time() - st.session_state['init_time'])}s")
 
 # --- Data Loading ---
 
@@ -204,6 +220,171 @@ def extract_amphoe_name(row, kml_cols):
             
     return a_val if a_val else ""
 
+# --- GCS Helpers ---
+
+def get_gcs_client():
+    try:
+        from google.auth.exceptions import DefaultCredentialsError
+        client = storage.Client()
+        return client
+    except Exception as e:
+        # Don't spam error here, just return None. The caller will handle fallback.
+        logger.warning(f"GCS Client not available (likely local mode): {e}")
+        return None
+
+def list_gcs_kml_files(bucket_name):
+    """Lists all KML files in the bucket."""
+    logger.info(f"Listing files in bucket: {bucket_name}")
+    client = get_gcs_client()
+    if not client: return []
+    try:
+        bucket = client.bucket(bucket_name)
+        # Check if bucket exists (Optional, can be skipped to save latency/perms)
+        # if not bucket.exists():
+        #    logger.warning(f"Bucket {bucket_name} does not exist or not accessible.")
+        #    return []
+        blobs = list(bucket.list_blobs()) # Force iteration to check connectivity
+        kml_files = [blob.name for blob in blobs if blob.name.lower().endswith('.kml')]
+        logger.info(f"Found {len(kml_files)} KML files: {kml_files}")
+        return kml_files
+    except Exception as e:
+        logger.error(f"Error listing GCS files: {e}")
+        st.sidebar.error(f"Error listing GCS files: {e}")
+        return []
+
+def upload_to_gcs(file_obj, bucket_name, destination_blob_name):
+    """Uploads a file object to the bucket OR local temp if GCS unavailable."""
+    logger.info(f"Attempting to upload {destination_blob_name}...")
+    client = get_gcs_client()
+    
+    # --- LOCAL FALLBACK ---
+    if not client:
+        logger.info("GCS unavailable. Using local temporary storage.")
+        local_dir = "/tmp/local_uploads"
+        if not os.path.exists(local_dir):
+            os.makedirs(local_dir)
+        
+        local_path = os.path.join(local_dir, destination_blob_name)
+        try:
+            with open(local_path, "wb") as f:
+                f.write(file_obj.getvalue())
+            logger.info(f"Saved locally to {local_path}")
+            return True
+        except Exception as e:
+            st.error(f"Local save failed: {e}")
+            return False
+    # ----------------------
+
+    try:
+        bucket = client.bucket(bucket_name)
+        
+        # Diagnostics proved upload_from_string works, so let's stick to that.
+        blob = bucket.blob(destination_blob_name)
+        
+        # Read bytes from Streamlit UploadedFile
+        data = file_obj.getvalue()
+        blob.upload_from_string(data, content_type='application/vnd.google-earth.kml+xml')
+        
+        logger.info(f"Successfully uploaded {destination_blob_name} to GCS (Size: {len(data)} bytes).")
+        return True
+    except Exception as e:
+        logger.error(f"Error uploading to GCS: {e}")
+        st.sidebar.error(f"Error uploading to GCS: {e}")
+        return False
+
+def load_kml_from_gcs(bucket_name, blob_name):
+    """Downloads KML from GCS (or local temp) to a temp file and queues it for loading."""
+    logger.info(f"Loading {blob_name}...")
+    client = get_gcs_client()
+    
+    # --- LOCAL FALLBACK ---
+    if not client:
+        local_path = os.path.join("/tmp/local_uploads", blob_name)
+        if os.path.exists(local_path):
+             logger.info(f"Loading from local path: {local_path}")
+             return load_kml_data(local_path)
+        else:
+             st.error(f"Local file not found: {local_path}")
+             return None
+    # ----------------------
+
+    try:
+        bucket = client.bucket(bucket_name)
+        blob = bucket.blob(blob_name)
+        
+        temp_filename = f"/tmp/temp_gcs_{blob_name}"
+        blob.download_to_filename(temp_filename)
+        logger.info(f"Downloaded {blob_name} to {temp_filename}")
+        
+        gdf = load_kml_data(temp_filename)
+        
+        if os.path.exists(temp_filename):
+            os.remove(temp_filename)
+            
+        return gdf
+    except Exception as e:
+        logger.error(f"Error loading {blob_name} from GCS: {e}")
+        st.error(f"Error loading {blob_name} from GCS: {e}")
+        return None
+
+# --- GCS Helpers ---
+
+@st.cache_resource
+def get_gcs_client():
+    try:
+        return storage.Client()
+    except Exception as e:
+        st.error(f"Failed to initialize GCS Client: {e}")
+        return None
+
+def list_gcs_kml_files(bucket_name):
+    """Lists all KML files in the bucket."""
+    client = get_gcs_client()
+    if not client: return []
+    try:
+        bucket = client.bucket(bucket_name)
+        blobs = bucket.list_blobs()
+        return [blob.name for blob in blobs if blob.name.lower().endswith('.kml')]
+    except Exception as e:
+        st.sidebar.error(f"Error listing GCS files: {e}")
+        return []
+
+def upload_to_gcs(file_obj, bucket_name, destination_blob_name):
+    """Uploads a file object to the bucket."""
+    client = get_gcs_client()
+    if not client: return False
+    try:
+        bucket = client.bucket(bucket_name)
+        blob = bucket.blob(destination_blob_name)
+        # Reset pointer just in case
+        file_obj.seek(0)
+        blob.upload_from_file(file_obj)
+        return True
+    except Exception as e:
+        st.sidebar.error(f"Error uploading to GCS: {e}")
+        return False
+
+def load_kml_from_gcs(bucket_name, blob_name):
+    """Downloads KML from GCS to a temp file and queues it for loading."""
+    client = get_gcs_client()
+    if not client: return None
+    try:
+        bucket = client.bucket(bucket_name)
+        blob = bucket.blob(blob_name)
+        
+        temp_filename = f"temp_gcs_{blob_name}"
+        blob.download_to_filename(temp_filename)
+        
+        gdf = load_kml_data(temp_filename)
+        
+        if os.path.exists(temp_filename):
+            os.remove(temp_filename)
+            
+        return gdf
+    except Exception as e:
+        st.error(f"Error loading {blob_name} from GCS: {e}")
+        return None
+
 def calculate_votes_by_subdistrict(df_election):
     """Aggregates votes by sub-district and determines the winner."""
     if df_election.empty or 'ตำบล' not in df_election.columns:
@@ -252,42 +433,141 @@ def main():
         # Always load default districts
         gdf_districts = load_kml_data(KML_FILE)
         
+        # --- System Diagnostics (Temporary for Debugging) ---
+        # Initialize Run Count
+        if 'run_count' not in st.session_state: st.session_state['run_count'] = 0
+        st.session_state['run_count'] += 1
+        
+        with st.sidebar.expander(f"System Diagnostics (Run #{st.session_state['run_count']})", expanded=True):
+
+            st.write(f"**GCS Bucket:** `{GCS_BUCKET_NAME}`")
+            
+            # Check Client
+            client = get_gcs_client()
+            if client:
+                st.success("GCS Client: Connected")
+                
+                # Check Bucket
+                try:
+                    bucket = client.bucket(GCS_BUCKET_NAME)
+                    if bucket.exists():
+                        st.success(f"Bucket '{GCS_BUCKET_NAME}': Found")
+                    else:
+                        st.error(f"Bucket '{GCS_BUCKET_NAME}': NOT FOUND")
+                except Exception as e:
+                    st.error(f"Bucket Check Failed: {e}")
+            else:
+                st.error("GCS Client: Failed (Check Logs)")
+                
+            # Check Identity (Detailed)
+            if st.button("Check Identity / Test Write"):
+                try:
+                    import google.auth
+                    credentials, project = google.auth.default()
+                    
+                    st.write(f"**Project:** `{project}`")
+                    
+                    # Get exact email
+                    sa_email = "Unknown"
+                    if hasattr(credentials, 'service_account_email'):
+                        sa_email = credentials.service_account_email
+                    elif hasattr(credentials, 'signer_email'):
+                        sa_email = credentials.signer_email
+                        
+                    st.write(f"**Service Account:** `{sa_email}`")
+                    
+                    # TEST WRITE
+                    if client:
+                        bucket = client.bucket(GCS_BUCKET_NAME)
+                        blob = bucket.blob("diagnostics_test.txt")
+                        blob.upload_from_string("This is a test file from the Prachin Dashboard diagnostics.")
+                        st.success(f"✅ Write Test Passed: Uploaded 'diagnostics_test.txt'")
+                        
+                except Exception as e:
+                    st.error(f"❌ Write/Auth Failed: {e}")
+                    logger.error(f"Diagnostics failed: {e}")
+
         # KML uploader
         st.sidebar.markdown("---")
         st.sidebar.header("Data Source")
-        uploaded_kml = st.sidebar.file_uploader("Upload KML File (Optional)", type=['kml'])
         
         # Initialize session state for KML layers if not present
         if 'kml_layers' not in st.session_state:
             st.session_state['kml_layers'] = {}
+            
+            # --- Auto-load from GCS on startup ---
+            existing_files = list_gcs_kml_files(GCS_BUCKET_NAME)
+            if existing_files:
+                with st.spinner(f"Loading {len(existing_files)} KMLs from Cloud Storage..."):
+                    for fname in existing_files:
+                        if fname not in st.session_state['kml_layers']:
+                            gdf_gcs = load_kml_from_gcs(GCS_BUCKET_NAME, fname)
+                            if gdf_gcs is not None and not gdf_gcs.empty:
+                                st.session_state['kml_layers'][fname] = gdf_gcs
 
+        uploaded_kml = st.sidebar.file_uploader("Upload KML File (Optional)", type=['kml'], key="kml_upload_widget")
+        
         if uploaded_kml is not None:
-            # Check if this specific file is already loaded to avoid re-processing or duplicates if desirable
-            # However, if user re-uploads same file name with different content, we might want to reload.
-            # But standard behavior for "Stacking" usually implies unique names or just append.
-            # Let's use filename as key.
-            if uploaded_kml.name not in st.session_state['kml_layers']:
+            # 1. Show File Details immediately
+            st.sidebar.markdown(f"""
+            **File Detected:**
+            - Name: `{uploaded_kml.name}`
+            - Size: `{uploaded_kml.size / 1024:.2f} KB`
+            """)
+            
+            # 2. Step 1: Upload to Cloud (Safe)
+            if st.sidebar.button("1. Upload to Cloud ☁️", key="btn_upload_only"):
+                st.sidebar.info("⏳ Uploading bytes to GCS...")
                 try:
-                    # Save to temp file
-                    temp_filename = f"temp_{uploaded_kml.name}"
-                    with open(temp_filename, "wb") as f:
-                        f.write(uploaded_kml.getbuffer())
+                    safe_name = uploaded_kml.name.replace(" ", "_")
+                    success = upload_to_gcs(uploaded_kml, GCS_BUCKET_NAME, safe_name)
                     
-                    st.sidebar.info(f"Processing: {uploaded_kml.name}...")
-                    gdf_new = load_kml_data(temp_filename)
-                    
-                    if gdf_new is not None and not gdf_new.empty:
-                        st.session_state['kml_layers'][uploaded_kml.name] = gdf_new
-                        st.sidebar.success(f"Added: {uploaded_kml.name}")
-                    else:
-                         st.sidebar.warning(f"Could not load features from {uploaded_kml.name}")
-                    
-                    # Cleanup temp file
-                    if os.path.exists(temp_filename):
-                        os.remove(temp_filename)
+                    if success:
+                        st.sidebar.success(f"✅ Upload Success: {safe_name}")
                         
+                        # Verify it exists (Check LOCAL or GCS)
+                        client = get_gcs_client()
+                        if client:
+                            bucket = client.bucket(GCS_BUCKET_NAME)
+                            blob = bucket.blob(safe_name)
+                            exists = blob.exists()
+                            loc_msg = f"in GCS bucket {GCS_BUCKET_NAME}"
+                        else:
+                            # Verify local
+                            exists = os.path.exists(os.path.join("/tmp/local_uploads", safe_name))
+                            loc_msg = "in local_uploads (Offline Mode)"
+
+                        if exists:
+                           st.sidebar.success(f"Verified: File exists {loc_msg}")
+                           # Flag state to allow visualization
+                           st.session_state['last_uploaded_gcs_path'] = safe_name
+                        else:
+                           st.sidebar.error(f"❌ Uploaded but file not found {loc_msg}!")
+                    else:
+                        st.sidebar.error("❌ Upload returned False.")
                 except Exception as e:
-                    st.sidebar.error(f"Error processing {uploaded_kml.name}: {e}")
+                    st.sidebar.error(f"Upload Crash: {e}")
+
+            # 3. Step 2: Visualize (Potentially Risky)
+            if 'last_uploaded_gcs_path' in st.session_state:
+                target_file = st.session_state['last_uploaded_gcs_path']
+                st.sidebar.markdown(f"**Ready to View:** `{target_file}`")
+                
+                if st.sidebar.button(f"2. Visualize {target_file} 🗺️", key="btn_visualize"):
+                    st.sidebar.text(f"Downloading & Parsing {target_file}...")
+                    try:
+                        gdf_new = load_kml_from_gcs(GCS_BUCKET_NAME, target_file)
+                        if gdf_new is not None and not gdf_new.empty:
+                            st.session_state['kml_layers'][target_file] = gdf_new
+                            st.sidebar.success("✅ Layer Added! (Check Layer Controls)")
+                            st.rerun()
+                        else:
+                            st.sidebar.error("❌ Parsing failed (Result is empty/None).")
+                    except Exception as e:
+                        st.sidebar.error(f"❌ CRITICAL PARSING CRASH: {e}")
+                        
+        else:
+            st.sidebar.caption("Waiting for file selection...")
 
     # Pre-process Data for Map
     df_votes_by_district = pd.DataFrame()
@@ -317,6 +597,16 @@ def main():
     tab_overview, tab_analysis = st.tabs(["Overview", "Analysis Details"])
     
     with tab_overview:
+        # Search Feature (Main Area)
+        if not df_election.empty and 'ชื่อหน่วยเลือกตั้ง' in df_election.columns:
+            all_units = sorted(df_election['ชื่อหน่วยเลือกตั้ง'].astype(str).unique().tolist())
+            selected_units = st.multiselect("🔍 Search Election Unit", options=all_units, placeholder="Type to search unit name...")
+            
+            if selected_units:
+                df_election = df_election[df_election['ชื่อหน่วยเลือกตั้ง'].isin(selected_units)]
+                st.success(f"Showing {len(df_election)} filtered points.")
+                show_points = True # Force show points on map if user is searching
+
         if gdf_districts is not None and not gdf_districts.empty:
             st.sidebar.success(f"Loaded {len(gdf_districts)} sub-districts")
             
@@ -516,6 +806,8 @@ def main():
             options=["Satellite", "Default (Light)", "Terrain (ภูมิประเทศ)"],
             index=1
         )
+        
+
     
         # Map Style Mapping
         map_styles = {
@@ -656,10 +948,24 @@ def main():
         # Map State
         # Center map on data
         if not df_election.empty:
+            # Dynamic Zoom Logic
+            # If we are validly filtered to a single point (or very few), zoom in close.
+            # If we show all data (len > 100 usually), zoom out.
+            
+            row_count = len(df_election)
+            
+            # Default zoom
+            zoom_level = 10
+            
+            if row_count == 1:
+                zoom_level = 15
+            elif row_count < 5:
+                zoom_level = 13
+            
             initial_view_state = pdk.ViewState(
                 latitude=df_election['latitude'].mean(),
                 longitude=df_election['longitude'].mean(),
-                zoom=10,
+                zoom=zoom_level,
                 pitch=0,
             )
         else:

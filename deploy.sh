@@ -4,6 +4,7 @@
 PROJECT_ID="prachinburi-district-1"
 REGION="asia-southeast1"
 SERVICE_NAME="prachin-dashboard"
+GCS_BUCKET_NAME="prachin-voter-kml-storage"
 
 # Colors
 GREEN='\033[0;32m'
@@ -17,11 +18,23 @@ if command -v gcloud &> /dev/null; then
     echo -e "${GREEN}Found local gcloud configuration.${NC}"
     echo "This command will prompt for authentication if needed."
     
+    # Create bucket if not exists
+    echo -e "${GREEN}Ensuring GCS Bucket '$GCS_BUCKET_NAME' exists...${NC}"
+    if ! gcloud storage buckets describe "gs://$GCS_BUCKET_NAME" &>/dev/null; then
+        echo "Creating bucket..."
+        gcloud storage buckets create "gs://$GCS_BUCKET_NAME" --location="$REGION"
+    else
+        echo "Bucket exists."
+    fi
+
     gcloud run deploy "$SERVICE_NAME" \
         --source . \
         --project "$PROJECT_ID" \
         --region "$REGION" \
         --allow-unauthenticated \
+        --set-env-vars GCS_BUCKET_NAME="$GCS_BUCKET_NAME" \
+        --memory 2Gi \
+        --cpu 2 \
         --port 8501
 
 else
@@ -86,10 +99,21 @@ else
         --member=\"serviceAccount:\${COMPUTE_SA}\" \
         --role=\"roles/artifactregistry.admin\"; \
      
+     echo '${GREEN}Ensuring GCS Bucket '$GCS_BUCKET_NAME' exists...${NC}'; \
+     if ! gcloud storage buckets describe gs://$GCS_BUCKET_NAME &>/dev/null; then \
+        echo 'Creating bucket...'; \
+        gcloud storage buckets create gs://$GCS_BUCKET_NAME --location=$REGION; \
+     else \
+        echo 'Bucket exists.'; \
+     fi; \
+     
      echo '${GREEN}Deploying...${NC}'; \
      gcloud run deploy $SERVICE_NAME \
         --source . \
         --region $REGION \
         --allow-unauthenticated \
+        --set-env-vars GCS_BUCKET_NAME=$GCS_BUCKET_NAME \
+        --memory 2Gi \
+        --cpu 2 \
         --port 8501"
 fi
