@@ -5,6 +5,7 @@ enableCORS = false
 enableXsrfProtection = false
 enableWebsocketCompression = false
 fileWatcherType = "none"
+maxUploadSize = 50
 
 [browser]
 gatherUsageStats = false

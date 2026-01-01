@@ -32,7 +32,8 @@ GCS_BUCKET_NAME = os.environ.get("GCS_BUCKET_NAME", "prachin-voter-kml-storage")
 # --- Heartbeat Debug ---
 import time
 st.sidebar.markdown(f"**Server Time:** `{time.strftime('%H:%M:%S')}`")
-if 'init_t  ime' not in st.session_state: st.session_state['init_time'] = time.time()
+if 'init_time' not in st.session_state:
+    st.session_state['init_time'] = time.time()
 st.sidebar.caption(f"Session Age: {int(time.time() - st.session_state['init_time'])}s")
 
 # --- Data Loading ---
@@ -433,59 +434,10 @@ def main():
         # Always load default districts
         gdf_districts = load_kml_data(KML_FILE)
         
-        # --- System Diagnostics (Temporary for Debugging) ---
-        # Initialize Run Count
-        if 'run_count' not in st.session_state: st.session_state['run_count'] = 0
-        st.session_state['run_count'] += 1
-        
-        with st.sidebar.expander(f"System Diagnostics (Run #{st.session_state['run_count']})", expanded=True):
+        # --- System Diagnostics (Removed for Performance) ---
+        # if 'run_count' not in st.session_state: st.session_state['run_count'] = 0
+        # st.session_state['run_count'] += 1
 
-            st.write(f"**GCS Bucket:** `{GCS_BUCKET_NAME}`")
-            
-            # Check Client
-            client = get_gcs_client()
-            if client:
-                st.success("GCS Client: Connected")
-                
-                # Check Bucket
-                try:
-                    bucket = client.bucket(GCS_BUCKET_NAME)
-                    if bucket.exists():
-                        st.success(f"Bucket '{GCS_BUCKET_NAME}': Found")
-                    else:
-                        st.error(f"Bucket '{GCS_BUCKET_NAME}': NOT FOUND")
-                except Exception as e:
-                    st.error(f"Bucket Check Failed: {e}")
-            else:
-                st.error("GCS Client: Failed (Check Logs)")
-                
-            # Check Identity (Detailed)
-            if st.button("Check Identity / Test Write"):
-                try:
-                    import google.auth
-                    credentials, project = google.auth.default()
-                    
-                    st.write(f"**Project:** `{project}`")
-                    
-                    # Get exact email
-                    sa_email = "Unknown"
-                    if hasattr(credentials, 'service_account_email'):
-                        sa_email = credentials.service_account_email
-                    elif hasattr(credentials, 'signer_email'):
-                        sa_email = credentials.signer_email
-                        
-                    st.write(f"**Service Account:** `{sa_email}`")
-                    
-                    # TEST WRITE
-                    if client:
-                        bucket = client.bucket(GCS_BUCKET_NAME)
-                        blob = bucket.blob("diagnostics_test.txt")
-                        blob.upload_from_string("This is a test file from the Prachin Dashboard diagnostics.")
-                        st.success(f"✅ Write Test Passed: Uploaded 'diagnostics_test.txt'")
-                        
-                except Exception as e:
-                    st.error(f"❌ Write/Auth Failed: {e}")
-                    logger.error(f"Diagnostics failed: {e}")
 
         # KML uploader
         st.sidebar.markdown("---")
