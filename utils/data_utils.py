@@ -4,27 +4,58 @@ import geopandas as gpd
 from fastkml import kml
 from typing import Optional
 import os
-from .constants import COMMENTS_FILE
+import io
+from .constants import COMMENTS_FILE, GCS_BUCKET_NAME
+# Note: Circular import risk if we import load_kml_from_gcs here if it imports this.
+# Avoiding circular import by importing inside function or using separate module structure correctly.
+# Ideally gcs_utils should not import data_utils if data_utils uses gcs_utils.
+# Refactoring: gcs_utils currently imports load_kml_data from data_utils.
+# So data_utils CANNOT import gcs_utils directly at top level if not careful.
+# We will use lazy imports inside the function.
 
 def load_comments() -> list:
-    """Loads comments from CSV file."""
+    """Loads comments from CSV file (First GCS, then Local fallback)."""
+    # Try GCS First (Sync)
+    from .gcs_utils import download_text_from_gcs
+    csv_text = download_text_from_gcs(GCS_BUCKET_NAME, f"shared/{COMMENTS_FILE}")
+    
+    if csv_text:
+        try:
+            df = pd.read_csv(io.StringIO(csv_text))
+            # Save to local for fallback/cache
+            df.to_csv(COMMENTS_FILE, index=False)
+            return df.to_dict('records')
+        except Exception as e:
+            st.error(f"Error parsing GCS comments: {e}")
+
+    # Fallback to local
     if os.path.exists(COMMENTS_FILE):
         try:
             df = pd.read_csv(COMMENTS_FILE)
             return df.to_dict('records')
         except Exception as e:
-            st.error(f"Error loading comments: {e}")
             return []
     return []
 
 def save_comment(comment: dict):
-    """Saves a single comment to CSV file."""
+    """Saves a single comment to CSV file (Local + GCS Sync)."""
     try:
+        # Load current state to append correctly (or just append to local and re-read)
+        # Better: Append to local file
         df_new = pd.DataFrame([comment])
         if os.path.exists(COMMENTS_FILE):
             df_new.to_csv(COMMENTS_FILE, mode='a', header=False, index=False)
         else:
             df_new.to_csv(COMMENTS_FILE, mode='w', header=True, index=False)
+            
+        # Sync to GCS: Read full file and upload
+        if os.path.exists(COMMENTS_FILE):
+            with open(COMMENTS_FILE, 'r') as f:
+                full_csv_content = f.read()
+            
+            from .gcs_utils import upload_text_to_gcs
+            upload_text_to_gcs(full_csv_content, GCS_BUCKET_NAME, f"shared/{COMMENTS_FILE}")
+            
     except Exception as e:
         st.error(f"Error saving comment: {e}")
 

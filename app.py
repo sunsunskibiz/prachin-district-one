@@ -5,10 +5,13 @@ import time
 import logging
 import sys
 import os
+import yaml
+from yaml.loader import SafeLoader
+import streamlit_authenticator as stauth
 
 # Import from new utils
 from utils.constants import CSV_FILE, KML_FILE, GCS_BUCKET_NAME
-from utils.geo_utils import create_mask_polygon, extract_subdistrict_name, extract_amphoe_name
+from utils.geo_utils import create_mask_polygon, extract_subdistrict_name, extract_amphoe_name, process_path_overlaps
 from utils.data_utils import load_comments, save_comment, load_csv_data, load_kml_data, calculate_votes_by_subdistrict
 from utils.gcs_utils import list_gcs_kml_files, upload_to_gcs, load_kml_from_gcs, get_gcs_client
 
@@ -23,14 +26,50 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- Heartbeat Debug ---
-st.sidebar.markdown(f"**Server Time:** `{time.strftime('%H:%M:%S')}`")
-if 'init_time' not in st.session_state:
-    st.session_state['init_time'] = time.time()
-st.sidebar.caption(f"Session Age: {int(time.time() - st.session_state['init_time'])}s")
+# --- Authentication Setup ---
+def setup_auth():
+    with open('auth_config.yaml') as file:
+        config = yaml.load(file, Loader=SafeLoader)
+
+    authenticator = stauth.Authenticate(
+        config['credentials'],
+        config['cookie']['name'],
+        config['cookie']['key'],
+        config['cookie']['expiry_days'],
+        # preauthorized=config['preauthorized'] 
+    )
+    return authenticator, config
 
 def main():
+    # Auth Check
+    authenticator, config = setup_auth()
+    try:
+        authenticator.login()
+    except Exception as e:
+        st.error(e)
+
+    if st.session_state["authentication_status"]:
+        username = st.session_state["username"]
+        
+        # --- LOGGED IN CONTENT ---
+        with st.sidebar:
+            st.write(f"USER: **{st.session_state['name']}**")
+            authenticator.logout('Logout', 'main')
+            st.divider()
+        
+        _main_app_logic(username)
+
+    elif st.session_state["authentication_status"] is False:
+        st.error('Username/password is incorrect')
+    elif st.session_state["authentication_status"] is None:
+        st.warning('Please enter your username and password')
+
+
+def _main_app_logic(username):
     st.title("Dashboard of Prachinburi District 1")
+    
+    # --- Heartbeat Debug ---
+    st.sidebar.markdown(f"**Server Time:** `{time.strftime('%H:%M:%S')}`")
     
     # Load Data
     with st.spinner("Loading data..."):
@@ -40,21 +79,26 @@ def main():
         gdf_districts = load_kml_data(KML_FILE)
 
         # KML uploader
-        st.sidebar.markdown("---")
         st.sidebar.header("Data Source")
         
         # Initialize session state for KML layers if not present
         if 'kml_layers' not in st.session_state:
             st.session_state['kml_layers'] = {}
             
-            # --- Auto-load from GCS on startup ---
-            existing_files = list_gcs_kml_files(GCS_BUCKET_NAME)
+            # --- Auto-load from GCS on startup (User specific + maybe shared?) ---
+            # For now, let's load USER files
+            user_prefix = f"uploads/{username}/"
+            existing_files = list_gcs_kml_files(GCS_BUCKET_NAME, prefix=user_prefix)
+            
             if existing_files:
-                with st.spinner(f"Loading {len(existing_files)} KMLs from Cloud Storage..."):
+                # Limit to avoid overloading if many files
+                with st.spinner(f"Loading {len(existing_files)} KMLs..."):
                     for fname in existing_files:
                         if fname not in st.session_state['kml_layers']:
                             gdf_gcs = load_kml_from_gcs(GCS_BUCKET_NAME, fname)
                             if gdf_gcs is not None and not gdf_gcs.empty:
+                                # Key by filename relative (cleaner UI) or full path?
+                                # Let's use full path for uniqueness in backend, but maybe display cleaner name
                                 st.session_state['kml_layers'][fname] = gdf_gcs
 
         uploaded_kml = st.sidebar.file_uploader("Upload KML File (Optional)", type=['kml'], key="kml_upload_widget")
@@ -67,22 +111,25 @@ def main():
                  if 'processed_uploads' not in st.session_state: st.session_state['processed_uploads'] = []
                  
                  st.sidebar.info(f"Processing {uploaded_kml.name}...")
-                 safe_name = uploaded_kml.name.replace(" ", "_")
+                 
+                 # Name Spacing: uploads/{username}/{filename}
+                 safe_filename = uploaded_kml.name.replace(" ", "_")
+                 destination_path = f"uploads/{username}/{safe_filename}"
                  
                  # 1. Determine Environment (Cloud vs Local)
                  client = get_gcs_client()
                  
                  if client:
                      # --- CLOUD MODE (GCS) ---
-                     success = upload_to_gcs(uploaded_kml, GCS_BUCKET_NAME, safe_name)
+                     success = upload_to_gcs(uploaded_kml, GCS_BUCKET_NAME, destination_path)
                      if success:
                          st.sidebar.success(f"☁️ Uploaded to GCS!")
                          # Auto-Visualize
                          try:
-                             gdf_new = load_kml_from_gcs(GCS_BUCKET_NAME, safe_name)
+                             gdf_new = load_kml_from_gcs(GCS_BUCKET_NAME, destination_path)
                              if gdf_new is not None and not gdf_new.empty:
-                                 st.session_state['kml_layers'][safe_name] = gdf_new
-                                 st.success(f"✅ Visualized: {safe_name}")
+                                 st.session_state['kml_layers'][destination_path] = gdf_new
+                                 st.success(f"✅ Visualized: {safe_filename}")
                                  st.session_state['processed_uploads'].append(file_id)
                                  st.rerun()
                              else:
@@ -94,18 +141,17 @@ def main():
                          
                  else:
                      # --- LOCAL MODE (Session Only) ---
+                     # For local, we just ignore the folder structure for simplicity or mock it
                      try:
-                         # Save to temp for processing
-                         temp_path = os.path.join("/tmp", safe_name)
+                         temp_path = os.path.join("/tmp", safe_filename)
                          with open(temp_path, "wb") as f:
                              f.write(uploaded_kml.getbuffer())
                              
-                         # Parse directly
                          st.sidebar.info("Parsing locally...")
                          gdf_new = load_kml_data(temp_path)
                          if gdf_new is not None and not gdf_new.empty:
-                             st.session_state['kml_layers'][safe_name] = gdf_new
-                             st.sidebar.success(f"🏠 Loaded locally: {safe_name}")
+                             st.session_state['kml_layers'][safe_filename] = gdf_new # No prefix for local
+                             st.sidebar.success(f"🏠 Loaded locally: {safe_filename}")
                              st.session_state['processed_uploads'].append(file_id)
                              st.rerun()
                          else:
@@ -393,23 +439,24 @@ def main():
             )
             layers.append(layer_districts)
 
-        # 2b. Uploaded Layers (Stacked)
-        for name in active_uploaded_layers:
-             gdf_layer = st.session_state['kml_layers'].get(name)
-             if gdf_layer is not None:
-                 layer_uploaded = pdk.Layer(
+        # 2b. Uploaded Layers (Merged & Colored by Overlap)
+        if active_uploaded_layers:
+            gdf_merged = process_path_overlaps(active_uploaded_layers, st.session_state['kml_layers'])
+            
+            if gdf_merged is not None and not gdf_merged.empty:
+                layer_uploaded = pdk.Layer(
                     "GeoJsonLayer",
-                    gdf_layer,
-                    id=f"layer-{name}", # Unique ID for pydeck
+                    gdf_merged,
+                    id="layer-uploaded-merged",
                     opacity=1.0,
                     stroked=True,
                     filled=False, 
-                    get_line_color=[255, 80, 0, 255], # Deep Orange
+                    get_line_color="color", # Data-driven color from process_path_overlaps
                     get_line_width=30,
                     lineWidthMinPixels=2,
                     pickable=False,
                 )
-                 layers.append(layer_uploaded)
+                layers.append(layer_uploaded)
 
         if show_winner and gdf_districts is not None and 'Winner' in gdf_districts.columns:
             # 3. Winner Layer

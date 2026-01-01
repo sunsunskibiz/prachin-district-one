@@ -69,3 +69,137 @@ def extract_amphoe_name(row, kml_cols):
             a_val = match.group(1).strip()
             
     return a_val if a_val else ""
+
+def process_path_overlaps(active_layer_names: list, kml_layers_dict: dict) -> Optional[gpd.GeoDataFrame]:
+    """
+    Combines segments from multiple KML layers and counts overlaps.
+    Uses grid snapping to detect overlaps and linemerge for smooth rendering.
+    """
+    from shapely.geometry import LineString, MultiLineString
+    from shapely.ops import linemerge
+    from collections import Counter
+    import math
+
+    if not active_layer_names:
+        return None
+        
+    all_segments = []
+    
+    # Tolerances
+    # 0.0002 degrees is approx 22 meters at equator.
+    # This accounts for GPS drift (~5-10m) + road width deviation.
+    SNAP_GRID = 0.0002 
+    
+    # We densify slightly finer than the grid to ensure we hit cells
+    DENSIFY_LEN = 0.00015
+    
+    print(f"DEBUG: Processing {len(active_layer_names)} layers (Grid: {SNAP_GRID})...")
+
+    for name in active_layer_names:
+        gdf = kml_layers_dict.get(name)
+        if gdf is None or gdf.empty:
+            continue
+            
+        # Iterate over features
+        for geom in gdf.geometry:
+            if geom is None:
+                continue
+
+            # Helper to process coordinate sequence
+            def process_coords(coords):
+                if not coords or len(coords) < 2:
+                    return
+
+                # 1. Densify
+                densified = [coords[0]]
+                for i in range(len(coords) - 1):
+                    p1 = coords[i]
+                    p2 = coords[i+1]
+                    dist = math.sqrt((p1[0]-p2[0])**2 + (p1[1]-p2[1])**2)
+                    
+                    if dist > DENSIFY_LEN:
+                        num_segments = int(dist // DENSIFY_LEN) + 1
+                        for j in range(1, num_segments):
+                            frac = j / num_segments
+                            nx = p1[0] + (p2[0] - p1[0]) * frac
+                            ny = p1[1] + (p2[1] - p1[1]) * frac
+                            densified.append((nx, ny))
+                    densified.append(p2)
+                
+                # 2. Snap to Custom Grid
+                def snap(val):
+                    return round(val / SNAP_GRID) * SNAP_GRID
+
+                for i in range(len(densified) - 1):
+                    p1 = densified[i]
+                    p2 = densified[i+1]
+                    
+                    p1_s = (snap(p1[0]), snap(p1[1]))
+                    p2_s = (snap(p2[0]), snap(p2[1]))
+                    
+                    if p1_s == p2_s: continue 
+                    
+                    # Sort to handle direction
+                    seg = tuple(sorted((p1_s, p2_s)))
+                    all_segments.append(seg)
+
+            if geom.geom_type == 'LineString':
+                process_coords(list(geom.coords))
+            elif geom.geom_type == 'MultiLineString':
+                for line in geom.geoms:
+                    process_coords(list(line.coords))
+            elif geom.geom_type == 'GeometryCollection':
+                # Recursive handling for GeometryCollection
+                def process_collection(collection):
+                    for sub_geom in collection.geoms:
+                        if sub_geom.geom_type == 'LineString':
+                            process_coords(list(sub_geom.coords))
+                        elif sub_geom.geom_type == 'MultiLineString':
+                            for line in sub_geom.geoms:
+                                process_coords(list(line.coords))
+                        elif sub_geom.geom_type == 'GeometryCollection':
+                            process_collection(sub_geom)
+                process_collection(geom)
+                    
+    if not all_segments:
+        return None
+        
+    # Count occurrences
+    counts = Counter(all_segments)
+    
+    # Group by count to merge lines
+    segments_by_count = {}
+    for seg, count in counts.items():
+        if count not in segments_by_count:
+            segments_by_count[count] = []
+        segments_by_count[count].append(LineString(seg))
+        
+    final_data = []
+    
+    # 3. Merge Segments for Smoothness
+    for count, lines in segments_by_count.items():
+        # linemerge combines touching lines into longer LineStrings
+        merged = linemerge(lines)
+        
+        # linemerge can return LineString or MultiLineString
+        if merged.geom_type == 'LineString':
+            final_data.append({'geometry': merged, 'overlap_count': count})
+        elif merged.geom_type == 'MultiLineString':
+            for part in merged.geoms:
+                 final_data.append({'geometry': part, 'overlap_count': count})
+        
+    gdf_result = gpd.GeoDataFrame(final_data)
+    
+    # Assign Colors (Same logic)
+    def get_color(count):
+        if count == 1:
+            return [255, 80, 0, 255]   # Orange
+        elif count == 2:
+            return [0, 255, 0, 255]    # Green
+        else:
+            return [0, 0, 255, 255]    # Blue
+            
+    gdf_result['color'] = gdf_result['overlap_count'].apply(get_color)
+    
+    print(f"DEBUG: Smooth Lines Generated: {len(gdf_result)} features")
+    return gdf_result

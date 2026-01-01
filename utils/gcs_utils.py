@@ -13,62 +13,47 @@ def get_gcs_client():
         client = storage.Client()
         return client
     except Exception as e:
-        # Don't spam error here, just return None. The caller will handle fallback.
         logger.warning(f"GCS Client not available (likely local mode): {e}")
         return None
 
-def list_gcs_kml_files(bucket_name):
-    """Lists all KML files in the bucket."""
-    logger.info(f"Listing files in bucket: {bucket_name}")
+def list_gcs_kml_files(bucket_name, prefix=None):
+    """Lists all KML files in the bucket, optionally filtering by prefix."""
+    logger.info(f"Listing files in bucket: {bucket_name} with prefix: {prefix}")
     client = get_gcs_client()
     if not client: return []
     try:
         bucket = client.bucket(bucket_name)
-        blobs = list(bucket.list_blobs()) # Force iteration to check connectivity
+        # prefix=None lists root, prefix="sunsun/" lists sunsun's folder
+        blobs = list(bucket.list_blobs(prefix=prefix)) 
         kml_files = [blob.name for blob in blobs if blob.name.lower().endswith('.kml')]
-        logger.info(f"Found {len(kml_files)} KML files: {kml_files}")
+        logger.info(f"Found {len(kml_files)} KML files.")
         return kml_files
     except Exception as e:
         logger.error(f"Error listing GCS files: {e}")
-        st.sidebar.error(f"Error listing GCS files: {e}")
         return []
 
 def upload_to_gcs(file_obj, bucket_name, destination_blob_name):
-    """Uploads a file object to the bucket OR local temp if GCS unavailable."""
+    """Uploads a file object to the bucket."""
     logger.info(f"Attempting to upload {destination_blob_name}...")
     client = get_gcs_client()
     
     # --- LOCAL FALLBACK ---
     if not client:
-        logger.info("GCS unavailable. Using local temporary storage.")
-        local_dir = "/tmp/local_uploads"
-        if not os.path.exists(local_dir):
-            os.makedirs(local_dir)
-        
-        local_path = os.path.join(local_dir, destination_blob_name)
-        try:
-            with open(local_path, "wb") as f:
-                f.write(file_obj.getvalue())
-            logger.info(f"Saved locally to {local_path}")
-            return True
-        except Exception as e:
-            st.error(f"Local save failed: {e}")
-            return False
+        return _save_local_fallback(file_obj, destination_blob_name)
     # ----------------------
 
     try:
         bucket = client.bucket(bucket_name)
         blob = bucket.blob(destination_blob_name)
         
-        # Read bytes from Streamlit UploadedFile
         data = file_obj.getvalue()
         blob.upload_from_string(data, content_type='application/vnd.google-earth.kml+xml')
         
-        logger.info(f"Successfully uploaded {destination_blob_name} to GCS (Size: {len(data)} bytes).")
+        logger.info(f"Successfully uploaded {destination_blob_name} to GCS.")
         return True
     except Exception as e:
         logger.error(f"Error uploading to GCS: {e}")
-        st.sidebar.error(f"Error uploading to GCS: {e}")
+        st.error(f"Error uploading to GCS: {e}")
         return False
 
 def load_kml_from_gcs(bucket_name, blob_name):
@@ -78,20 +63,17 @@ def load_kml_from_gcs(bucket_name, blob_name):
     
     # --- LOCAL FALLBACK ---
     if not client:
-        local_path = os.path.join("/tmp/local_uploads", blob_name)
-        if os.path.exists(local_path):
-             logger.info(f"Loading from local path: {local_path}")
-             return load_kml_data(local_path)
-        else:
-             st.error(f"Local file not found: {local_path}")
-             return None
+        return _load_local_fallback(blob_name)
     # ----------------------
 
     try:
         bucket = client.bucket(bucket_name)
         blob = bucket.blob(blob_name)
         
-        temp_filename = f"/tmp/temp_gcs_{blob_name}"
+        # Determine safe temp filename logic
+        safe_name = blob_name.replace("/", "_")
+        temp_filename = f"/tmp/temp_gcs_{safe_name}"
+        
         blob.download_to_filename(temp_filename)
         logger.info(f"Downloaded {blob_name} to {temp_filename}")
         
@@ -105,3 +87,57 @@ def load_kml_from_gcs(bucket_name, blob_name):
         logger.error(f"Error loading {blob_name} from GCS: {e}")
         st.error(f"Error loading {blob_name} from GCS: {e}")
         return None
+
+# --- Shared Data Helpers (Comments) ---
+
+def download_text_from_gcs(bucket_name, blob_name):
+    """Downloads text content from GCS."""
+    client = get_gcs_client()
+    if not client: return None
+    try:
+        bucket = client.bucket(bucket_name)
+        blob = bucket.blob(blob_name)
+        if blob.exists():
+            return blob.download_as_text()
+        return None
+    except Exception as e:
+        logger.error(f"Error downloading text {blob_name}: {e}")
+        return None
+
+def upload_text_to_gcs(text_content, bucket_name, blob_name):
+    """Uploads text content to GCS."""
+    client = get_gcs_client()
+    if not client: return False
+    try:
+        bucket = client.bucket(bucket_name)
+        blob = bucket.blob(blob_name)
+        blob.upload_from_string(text_content, content_type='text/csv')
+        return True
+    except Exception as e:
+        logger.error(f"Error uploading text {blob_name}: {e}")
+        return False
+
+# --- Internal Fallbacks ---
+def _save_local_fallback(file_obj, name):
+    logger.info("GCS unavailable. Using local temporary storage.")
+    safe_name = name.replace("/", "_")
+    local_dir = "/tmp/local_uploads"
+    if not os.path.exists(local_dir): os.makedirs(local_dir)
+    
+    local_path = os.path.join(local_dir, safe_name)
+    try:
+        with open(local_path, "wb") as f:
+            f.write(file_obj.getvalue())
+        return True
+    except Exception as e:
+        st.error(f"Local save failed: {e}")
+        return False
+
+def _load_local_fallback(name):
+    safe_name = name.replace("/", "_")
+    local_path = os.path.join("/tmp/local_uploads", safe_name)
+    if os.path.exists(local_path):
+         return load_kml_data(local_path)
+    else:
+         st.error(f"Local file not found: {local_path}")
+         return None

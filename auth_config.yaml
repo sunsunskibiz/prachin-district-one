@@ -1,0 +1,32 @@
+credentials:
+  usernames:
+    admin:
+      email: admin@example.com
+      name: Admin
+      password: $2b$12$C30uQxqBwqWBhUkIFfjsPeOU8cGeSr1KK0cnDZnXha8apq17ddXzK # "password"
+    sunsun:
+      email: sunsun@example.com
+      name: SunSun
+      password: $2b$12$C30uQxqBwqWBhUkIFfjsPeOU8cGeSr1KK0cnDZnXha8apq17ddXzK # "password"
+    man:
+      email: man@example.com
+      name: Man
+      password: $2b$12$C30uQxqBwqWBhUkIFfjsPeOU8cGeSr1KK0cnDZnXha8apq17ddXzK # "password"
+    pug:
+      email: pug@example.com
+      name: Pug
+      password: $2b$12$C30uQxqBwqWBhUkIFfjsPeOU8cGeSr1KK0cnDZnXha8apq17ddXzK # "password"
+    prang:
+      email: prang@example.com
+      name: Prang
+      password: $2b$12$C30uQxqBwqWBhUkIFfjsPeOU8cGeSr1KK0cnDZnXha8apq17ddXzK # "password"
+    kan:
+      email: kan@example.com
+      name: Kan
+      password: $2b$12$C30uQxqBwqWBhUkIFfjsPeOU8cGeSr1KK0cnDZnXha8apq17ddXzK # "password"
+cookie:
+  expiry_days: 30
+  key: random_signature_key
+  name: prachin_dashboard_cookie
+preauthorized:
+  emails: []
