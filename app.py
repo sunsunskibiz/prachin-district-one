@@ -987,6 +987,23 @@ def main():
         )
     
         st.pydeck_chart(r)
+
+        # Google Maps Links for Selected Points
+        if not df_election.empty and len(df_election) < 20: 
+            # Only show if reasonable number, otherwise list is too long. 
+            # If search is active (implied by small number usually), show links.
+            st.markdown("### 📍 Location Links")
+            st.markdown("Click below to open in Google Maps:")
+            
+            # Use columns to make it compact? Or just a list. A list is clearer.
+            for index, row in df_election.iterrows():
+                lat = row['latitude']
+                lon = row['longitude']
+                name = row.get('ชื่อหน่วยเลือกตั้ง', 'Location')
+                gmaps_url = f"https://www.google.com/maps/search/?api=1&query={lat},{lon}"
+                
+                st.markdown(f"- **[{name}]({gmaps_url})**")
+            st.markdown("---")
         
         # Legend (Only if Winner layer is active)
         if show_winner:
