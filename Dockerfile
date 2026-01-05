@@ -17,7 +17,7 @@ ENV C_INCLUDE_PATH=/usr/include/gdal
 COPY requirements.txt .
 
 # Install Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir --default-timeout=1000 -r requirements.txt
 
 # Copy the rest of the application code
 COPY . .

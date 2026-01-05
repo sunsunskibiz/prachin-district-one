@@ -41,6 +41,7 @@ def setup_auth():
     return authenticator, config
 
 def main():
+    logger.info("--- Main App Run ---")
     # Auth Check
     authenticator, config = setup_auth()
     try:
@@ -73,10 +74,11 @@ def _main_app_logic(username):
     
     # Load Data
     with st.spinner("Loading data..."):
-        df_election = load_csv_data(CSV_FILE)
+        df_election = load_csv_data(CSV_FILE).copy()
         
         # Always load default districts
-        gdf_districts = load_kml_data(KML_FILE)
+        gdf_districts_data = load_kml_data(KML_FILE)
+        gdf_districts = gdf_districts_data.copy() if gdf_districts_data is not None else None
 
         # KML uploader
         st.sidebar.header("Data Source")
@@ -412,6 +414,7 @@ def _main_app_logic(username):
                  layer_mask = pdk.Layer(
                     "GeoJsonLayer",
                     gdf_mask,
+                    id="layer_mask",
                     opacity=0.5,
                     stroked=False,
                     filled=True,
@@ -424,6 +427,7 @@ def _main_app_logic(username):
             layer_districts = pdk.Layer(
                 "GeoJsonLayer",
                 gdf_districts,
+                id="layer_districts",
                 opacity=1.0,
                 stroked=True,
                 filled=True, 
@@ -475,9 +479,14 @@ def _main_app_logic(username):
                 pct = row.get('Winner_Pct', 0)
                 
                 # Determine Alpha based on Percentage
-                if pct > 45:
+                try:
+                    pct_val = float(pct)
+                except (ValueError, TypeError):
+                    pct_val = 0
+
+                if pct_val > 45:
                     alpha = 200 # High intensity
-                elif pct >= 30:
+                elif pct_val >= 30:
                     alpha = 120 # Medium intensity
                 else:
                     alpha = 60  # Low intensity
@@ -496,6 +505,7 @@ def _main_app_logic(username):
             layer_winner = pdk.Layer(
                 "GeoJsonLayer",
                 gdf_districts,
+                id="layer_winner",
                 opacity=1.0,
                 stroked=True,
                 filled=True,
@@ -513,6 +523,7 @@ def _main_app_logic(username):
             layer_points = pdk.Layer(
                 "ScatterplotLayer",
                 df_election,
+                id="layer_points",
                 get_position=['longitude', 'latitude'],
                 get_color=[255, 65, 54, 200], # Redish
                 get_radius=100,
@@ -531,6 +542,7 @@ def _main_app_logic(username):
             layer_comments = pdk.Layer(
                 "ScatterplotLayer", 
                 df_comments,
+                id="layer_comments",
                 get_position=['longitude', 'latitude'],
                 get_fill_color=[0, 255, 0, 255], # Green
                 get_radius=300, 
@@ -578,7 +590,7 @@ def _main_app_logic(username):
             tooltip=tooltip
         )
     
-        st.pydeck_chart(r)
+        st.pydeck_chart(r, key="main_map")
 
         # Google Maps Links for Selected Points
         if not df_election.empty and len(df_election) < 20: 
