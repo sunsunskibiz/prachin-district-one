@@ -372,6 +372,7 @@ def _main_app_logic(username):
         st.sidebar.header("Layer Controls")
         show_districts = st.sidebar.checkbox("Show Sub-districts (KML)", value=True)
         show_winner = st.sidebar.checkbox("Show Winner (Sub-district)", value=False)
+        show_points = st.sidebar.checkbox("Show Election Points (CSV)", value=True)
         
         # Dynamic Controls for Uploaded Layers
         active_uploaded_layers = []
@@ -384,9 +385,7 @@ def _main_app_logic(username):
             if st.sidebar.button("Clear All Uploaded Layers"):
                 st.session_state['kml_layers'] = {}
                 st.rerun()
-        
-        show_points = st.sidebar.checkbox("Show Election Points (CSV)", value=True)
-    
+            
         st.sidebar.markdown("---")
         st.sidebar.header("Map Style")
         map_style_selection = st.sidebar.radio(
@@ -441,22 +440,32 @@ def _main_app_logic(username):
 
         # 2b. Uploaded Layers (Merged & Colored by Overlap)
         if active_uploaded_layers:
-            gdf_merged = process_path_overlaps(active_uploaded_layers, st.session_state['kml_layers'])
+            # Prepare list of layers for the cached function
+            layers_to_process = []
+            for name in active_uploaded_layers:
+                layer = st.session_state['kml_layers'].get(name)
+                if layer is not None:
+                    layers_to_process.append(layer)
+
+            if layers_to_process:
+                # Call cached function
+                with st.spinner("Processing overlaps..."):
+                    gdf_merged = process_path_overlaps(layers_to_process, active_uploaded_layers)
             
-            if gdf_merged is not None and not gdf_merged.empty:
-                layer_uploaded = pdk.Layer(
-                    "GeoJsonLayer",
-                    gdf_merged,
-                    id="layer-uploaded-merged",
-                    opacity=1.0,
-                    stroked=True,
-                    filled=False, 
-                    get_line_color="color", # Data-driven color from process_path_overlaps
-                    get_line_width=30,
-                    lineWidthMinPixels=2,
-                    pickable=False,
-                )
-                layers.append(layer_uploaded)
+                if gdf_merged is not None and not gdf_merged.empty:
+                    layer_uploaded = pdk.Layer(
+                        "GeoJsonLayer",
+                        gdf_merged,
+                        id="layer-uploaded-merged",
+                        opacity=1.0,
+                        stroked=True,
+                        filled=False, 
+                        get_line_color="color", # Data-driven color from process_path_overlaps
+                        get_line_width=30,
+                        lineWidthMinPixels=2,
+                        pickable=False,
+                    )
+                    layers.append(layer_uploaded)
 
         if show_winner and gdf_districts is not None and 'Winner' in gdf_districts.columns:
             # 3. Winner Layer

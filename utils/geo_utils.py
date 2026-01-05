@@ -70,33 +70,32 @@ def extract_amphoe_name(row, kml_cols):
             
     return a_val if a_val else ""
 
-def process_path_overlaps(active_layer_names: list, kml_layers_dict: dict) -> Optional[gpd.GeoDataFrame]:
+@st.cache_data(show_spinner=False)
+def process_path_overlaps(_layers: list, layer_names: list) -> Optional[gpd.GeoDataFrame]:
     """
     Combines segments from multiple KML layers and counts overlaps.
     Uses grid snapping to detect overlaps and linemerge for smooth rendering.
+    Cached for performance (hashes 'layer_names', ignores '_layers').
     """
     from shapely.geometry import LineString, MultiLineString
     from shapely.ops import linemerge
     from collections import Counter
     import math
 
-    if not active_layer_names:
+    if not _layers:
         return None
         
     all_segments = []
     
+    
     # Tolerances
-    # 0.0002 degrees is approx 22 meters at equator.
-    # This accounts for GPS drift (~5-10m) + road width deviation.
-    SNAP_GRID = 0.0002 
+    # Relaxed to reduce vertex count (approx 55m grid)
+    SNAP_GRID = 0.0005 
+    DENSIFY_LEN = 0.001
     
-    # We densify slightly finer than the grid to ensure we hit cells
-    DENSIFY_LEN = 0.00015
-    
-    print(f"DEBUG: Processing {len(active_layer_names)} layers (Grid: {SNAP_GRID})...")
+    # print(f"DEBUG: Processing {len(_layers)} layers (Grid: {SNAP_GRID})...") # Reduced log spam
 
-    for name in active_layer_names:
-        gdf = kml_layers_dict.get(name)
+    for gdf in _layers:
         if gdf is None or gdf.empty:
             continue
             
@@ -178,10 +177,7 @@ def process_path_overlaps(active_layer_names: list, kml_layers_dict: dict) -> Op
     
     # 3. Merge Segments for Smoothness
     for count, lines in segments_by_count.items():
-        # linemerge combines touching lines into longer LineStrings
         merged = linemerge(lines)
-        
-        # linemerge can return LineString or MultiLineString
         if merged.geom_type == 'LineString':
             final_data.append({'geometry': merged, 'overlap_count': count})
         elif merged.geom_type == 'MultiLineString':
@@ -190,7 +186,7 @@ def process_path_overlaps(active_layer_names: list, kml_layers_dict: dict) -> Op
         
     gdf_result = gpd.GeoDataFrame(final_data)
     
-    # Assign Colors (Same logic)
+    # Assign Colors 
     def get_color(count):
         if count == 1:
             return [255, 80, 0, 255]   # Orange
@@ -201,5 +197,5 @@ def process_path_overlaps(active_layer_names: list, kml_layers_dict: dict) -> Op
             
     gdf_result['color'] = gdf_result['overlap_count'].apply(get_color)
     
-    print(f"DEBUG: Smooth Lines Generated: {len(gdf_result)} features")
+    # print(f"DEBUG: Smooth Lines Generated: {len(gdf_result)} features")
     return gdf_result
