@@ -12,7 +12,7 @@ import streamlit_authenticator as stauth
 # Import from new utils
 from utils.constants import CSV_FILE, KML_FILE, GCS_BUCKET_NAME
 from utils.geo_utils import create_mask_polygon, extract_subdistrict_name, extract_amphoe_name, process_path_overlaps
-from utils.data_utils import load_comments, save_comment, load_csv_data, load_kml_data, calculate_votes_by_subdistrict
+from utils.data_utils import load_comments, save_comment, load_csv_data, load_kml_data, calculate_votes_by_subdistrict, load_campaign_pins
 from utils.gcs_utils import list_gcs_kml_files, upload_to_gcs, load_kml_from_gcs, get_gcs_client
 
 # --- Logging Config ---
@@ -70,7 +70,7 @@ def _main_app_logic(username):
     st.title("Dashboard of Prachinburi District 1")
     
     # --- Heartbeat Debug ---
-    st.sidebar.markdown(f"**Server Time:** `{time.strftime('%H:%M:%S')}`")
+    # st.sidebar.markdown(f"**Server Time:** `{time.strftime('%H:%M:%S')}`")
     
     # Load Data
     with st.spinner("Loading data..."):
@@ -79,6 +79,11 @@ def _main_app_logic(username):
         # Always load default districts
         gdf_districts_data = load_kml_data(KML_FILE)
         gdf_districts = gdf_districts_data.copy() if gdf_districts_data is not None else None
+        
+        # Load Campaign Pins
+        gdf_campaign_pins = load_campaign_pins()
+        if gdf_campaign_pins is not None and not gdf_campaign_pins.empty:
+            gdf_campaign_pins['tooltip_html'] = gdf_campaign_pins['name'].apply(lambda x: f"<b>{x}</b>")
 
         # KML uploader
         st.sidebar.header("Data Source")
@@ -372,9 +377,11 @@ def _main_app_logic(username):
 
         # Sidebar Controls
         st.sidebar.header("Layer Controls")
-        show_districts = st.sidebar.checkbox("Show Sub-districts (KML)", value=True)
-        show_winner = st.sidebar.checkbox("Show Winner (Sub-district)", value=False)
-        show_points = st.sidebar.checkbox("Show Election Points (CSV)", value=True)
+        show_districts = st.sidebar.checkbox("แสดงเขตตำบล", value=True)
+        show_comments = st.sidebar.checkbox("Comments", value=True)
+        show_winner = st.sidebar.checkbox("แสดงเขตผู้ชนะ", value=False)
+        show_points = st.sidebar.checkbox("หน่วยเลือกตั้ง", value=True)
+        show_campaign_pins = st.sidebar.checkbox("จุดติดป้าย", value=False)
         
         # Dynamic Controls for Uploaded Layers
         active_uploaded_layers = []
@@ -435,8 +442,8 @@ def _main_app_logic(username):
                 get_line_color=[0, 0, 255, 255], # Blue lines
                 get_line_width=30,
                 lineWidthMinPixels=2, # Ensure visibility at high zoom levels
-                pickable=True,
-                auto_highlight=True,
+                pickable=show_comments,
+                auto_highlight=show_comments,
                 wireframe=True,
                 highlight_color=[0, 0, 255, 128], # Blue highlight
             )
@@ -531,17 +538,69 @@ def _main_app_logic(username):
                 auto_highlight=True,
             )
             layers.append(layer_points)
+            
+        if show_campaign_pins and gdf_campaign_pins is not None:
+             # Campaign Pins Layer - Square Shape (using ColumnLayer with 4 sides)
+             import math
+             layer_campaign = pdk.Layer(
+                "ColumnLayer",
+                gdf_campaign_pins,
+                id="layer_campaign_pins",
+                get_position=['geometry.coordinates[0]', 'geometry.coordinates[1]'],
+                get_fill_color=[128, 0, 128, 200], # Purple
+                get_line_color=[255, 255, 255, 255],
+                get_line_width=2,
+                radius=100,
+                disk_resolution=4,
+                get_angle=math.pi / 4, # Rotate 45 deg to align as square
+                get_elevation=0,
+                extruded=False,
+                stroked=True,
+                pickable=True,
+                auto_highlight=True,
+            )
+             layers.append(layer_campaign)
         
-        # Comments Layer
-        if st.session_state['comments']:
-            df_comments = pd.DataFrame(st.session_state['comments'])
-        
-            # Add tooltip for comments
-            df_comments['tooltip_html'] = df_comments.apply(lambda row: f"<b>Comment</b><br/>{row.get('text', '')}", axis=1)
+        # Comments Layer (Aggregated for Timeline)
+        if show_comments and st.session_state['comments']:
+            # Aggregate comments by location for Tooltip Timeline
+            df_raw_comments = pd.DataFrame(st.session_state['comments'])
+            
+            # Ensure timestamp exists
+            if 'timestamp' not in df_raw_comments.columns:
+                df_raw_comments['timestamp'] = ''
+            
+            # Group by Lat/Lon to combine comments
+            def create_timeline_html(group):
+                html = "<div style='max-height: 200px; overflow-y: auto; color: black;'>" # color black for visibility
+                html += "<b>Comments Timeline</b><hr style='margin: 4px 0;'/>"
+                
+                # Sort by timestamp (assuming formatted string YYYY-MM-DD...)
+                group = group.sort_values('timestamp', ascending=False)
+                
+                for _, row in group.iterrows():
+                    ts = row.get('timestamp', '')
+                    txt = row.get('text', '')
+                    time_display = f"<span style='font-size: 0.8em; color: #666;'>{ts}</span><br/>" if ts else ""
+                    html += f"<div style='margin-bottom: 8px; border-bottom: 1px solid #ccc; padding-bottom: 4px; font-size: 12px;'>{time_display}{txt}</div>"
+                
+                html += "</div>"
+                return html
+
+            # Grouping
+            if not df_raw_comments.empty:
+                df_comments_agg = df_raw_comments.groupby(['latitude', 'longitude']).apply(
+                    lambda x: pd.Series({
+                        'tooltip_html': create_timeline_html(x),
+                        'count': len(x)
+                    })
+                ).reset_index()
+            else:
+                 df_comments_agg = pd.DataFrame(columns=['latitude', 'longitude', 'tooltip_html'])
 
             layer_comments = pdk.Layer(
                 "ScatterplotLayer", 
-                df_comments,
+                df_comments_agg,
                 id="layer_comments",
                 get_position=['longitude', 'latitude'],
                 get_fill_color=[0, 255, 0, 255], # Green
@@ -590,7 +649,8 @@ def _main_app_logic(username):
             tooltip=tooltip
         )
     
-        st.pydeck_chart(r, key="main_map")
+        # st.pydeck_chart(r, key="main_map") # Old
+        st.pydeck_chart(r, key="main_map", on_select="rerun", selection_mode="single-object")
 
         # Google Maps Links for Selected Points
         if not df_election.empty and len(df_election) < 20: 
@@ -619,43 +679,137 @@ def _main_app_logic(username):
             """)
     
         # Comments / Annotation Section
-        st.markdown("---")
-        st.header("Campaign Comments")
-        st.markdown("Add a comment to a specific location directly to `comments.csv`.")
-    
-        # Form to add comment
-        with st.form("comment_form"):
-            c_col1, c_col2 = st.columns(2)
-            with c_col1:
-                 c_lat = st.number_input("Latitude", value=initial_view_state.latitude, format="%.6f")
-            with c_col2:
-                 c_lon = st.number_input("Longitude", value=initial_view_state.longitude, format="%.6f")
+        if show_comments:
+            st.markdown("---")
+            st.header("Campaign Comments")
+            st.markdown("Select a point or district on the map to auto-fill the location.")
         
-            c_text = st.text_area("Comment Text")
-            c_submit = st.form_submit_button("Add Comment")
-        
-            if c_submit:
-                if c_text:
-                    new_comment = {
-                        "latitude": c_lat,
-                        "longitude": c_lon,
-                        "text": c_text,
-                        "ชื่อหน่วยเลือกตั้ง": "Comment: " + c_text[:20] # For tooltip compat
-                    }
-                    # Save to session
-                    st.session_state['comments'].append(new_comment)
-                    # Save to file
-                    save_comment(new_comment)
-                
-                    st.success("Comment added and saved to file!")
-                    st.rerun()
-                else:
-                    st.warning("Please enter some text.")
+            # --- Handle Map Selection ---
+            default_lat = initial_view_state.latitude
+            default_lon = initial_view_state.longitude
+            default_text = ""
             
-        # Display Comments
-        if st.session_state['comments']:
-            st.subheader("Existing Comments")
-            st.dataframe(pd.DataFrame(st.session_state['comments'])[['latitude', 'longitude', 'text']])
+            # Check if selection exists in session state
+            selection_state = st.session_state.get("main_map", {})
+            if selection_state and "selection" in selection_state:
+                selection = selection_state["selection"]
+                if selection and "objects" in selection and selection["objects"]:
+                    # Get the last selected object
+                    obj = selection["objects"].values()
+                    # The format is {layer_id: [object_list]}
+                    for obj_list in obj:
+                        if obj_list:
+                            selected_data = obj_list[0]
+                            # Try to extract coordinates
+                            # Case 1: Point (Scatterplot) - usually has 'latitude', 'longitude' or 'position'
+                            if 'latitude' in selected_data and 'longitude' in selected_data:
+                                default_lat = selected_data['latitude']
+                                default_lon = selected_data['longitude']
+                                name_val = selected_data.get('ชื่อหน่วยเลือกตั้ง', '') or selected_data.get('name', 'Point')
+                                default_text = f"Comment for: {name_val}"
+                                
+                            # Case 2: Polygon (GeoJson) - needs centroid calculation
+                            elif 'geometry' in selected_data:
+                                # Simple centroid approximation for display
+                                # This depends on how Pydeck returns the geometry. 
+                                # Usually it returns the GeoJSON geometry object.
+                                geom = selected_data['geometry']
+                                if geom['type'] == 'Polygon':
+                                    # Average of coordinates
+                                    coords = geom['coordinates'][0]
+                                    avg_lon = sum(p[0] for p in coords) / len(coords)
+                                    avg_lat = sum(p[1] for p in coords) / len(coords)
+                                    default_lat = avg_lat
+                                    default_lon = avg_lon
+                                    
+                                    sub_name = selected_data.get('sub_district_name', '') or selected_data.get('properties', {}).get('sub_district_name', 'District')
+                                    default_text = f"Comment for District: {sub_name}"
+                                elif geom['type'] == 'MultiPolygon':
+                                    # Take first polygon for simplicity
+                                    coords = geom['coordinates'][0][0]
+                                    avg_lon = sum(p[0] for p in coords) / len(coords)
+                                    avg_lat = sum(p[1] for p in coords) / len(coords)
+                                    default_lat = avg_lat
+                                    default_lon = avg_lon
+                                    sub_name = selected_data.get('sub_district_name', '') or selected_data.get('properties', {}).get('sub_district_name', 'District')
+                                    default_text = f"Comment for District: {sub_name}"
+                            
+                            # Case 3: Position array [lon, lat] (common in some layers)
+                            elif 'position' in selected_data:
+                                default_lon = selected_data['position'][0]
+                                default_lat = selected_data['position'][1]
+
+
+            # Form to add comment
+            with st.form("comment_form"):
+                c_col1, c_col2 = st.columns(2)
+                with c_col1:
+                     c_lat = st.number_input("Latitude", value=default_lat, format="%.6f")
+                with c_col2:
+                     c_lon = st.number_input("Longitude", value=default_lon, format="%.6f")
+            
+                c_text = st.text_area("Comment Text", value=default_text)
+                c_submit = st.form_submit_button("Add Comment")
+            
+                if c_submit:
+                    if c_text:
+                        import datetime
+                        new_comment = {
+                            "latitude": c_lat,
+                            "longitude": c_lon,
+                            "text": c_text,
+                            "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                            "ชื่อหน่วยเลือกตั้ง": "Comment: " + c_text[:20] # For tooltip compat
+                        }
+                        # Save to session
+                        st.session_state['comments'].append(new_comment)
+                        # Save to file
+                        save_comment(new_comment)
+                    
+                        st.success("Comment added and saved to file!")
+                        st.rerun()
+                    else:
+                        st.warning("Please enter some text.")
+                
+            # --- Manage Comments at this Location ---
+            if st.session_state['comments']:
+                # Import delete function
+                from utils.data_utils import delete_comment
+                
+                # Filter comments for the currently selected location
+                # Use small tolerance for float comparison or exact string match if they came from selection
+                # Simple float equality usually works if values came from the same source
+                current_loc_comments = [
+                    c for c in st.session_state['comments'] 
+                    if c['latitude'] == default_lat and c['longitude'] == default_lon
+                ]
+                
+                if current_loc_comments:
+                    st.markdown("##### 🗑️ Manage Comments at this Location")
+                    
+                    for i, comment in enumerate(current_loc_comments):
+                        col1, col2 = st.columns([0.8, 0.2])
+                        with col1:
+                            ts = comment.get('timestamp', '')
+                            ts_str = f"**[{ts}]** " if ts else ""
+                            st.markdown(f"{ts_str}{comment.get('text', '')}")
+                        with col2:
+                            # Unique key for each button
+                            if st.button("❌", key=f"del_{i}_{comment.get('timestamp')}_{comment.get('text')[:5]}"):
+                                # 1. Delete from backend
+                                delete_comment(comment)
+                                # 2. Delete from session state
+                                if comment in st.session_state['comments']:
+                                    st.session_state['comments'].remove(comment)
+                                st.rerun()
+                    st.divider()
+
+            # Display Comments (Raw Table) - Optional to hide this too or keep it?
+            # User said "add the comment when the checklist is toggled".
+            # Usually implies hiding the whole comment interface.
+            if st.session_state['comments']:
+                st.subheader("Existing Comments")
+                st.dataframe(pd.DataFrame(st.session_state['comments']))
 
     with tab_analysis:
         st.header("Analysis Details: Aggregated by Sub-district (ตำบล)")

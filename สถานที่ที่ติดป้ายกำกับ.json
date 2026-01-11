@@ -1,0 +1,2185 @@
+{
+  "features": [
+    {
+      "geometry": {
+        "coordinates": [
+          101.3716486,
+          14.070706
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "P ป้ายผอม 1"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.36138849999999,
+          14.059933599999999
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "เล็ก เทศบาล ซอย 11"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.3004527,
+          14.1366088
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "วัดท้าวอู่ทอง 2 (67)"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.3792744,
+          14.135821
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "เนินหอม L4 () "
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.32748869999999,
+          14.1116114
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "p เขตไม้เค็ด จุดที่ 1 (14)"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.38715479999999,
+          14.0726248
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "s ดงพระราม "
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.3240591,
+          14.1205521
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "b อ.วัดแหลมไผ่ 1 (58)"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.3163404,
+          14.1475642
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "p ศ. วัดท้าวอู่ทอง 2 (66)"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.36825119999999,
+          13.8754905
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "จุดทางข้าม (13)"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.37867229999999,
+          14.0000919
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "บางเดชะ (72)"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.38730629999999,
+          14.0872485
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "P บ้านพระ L1 ()"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.36063809999999,
+          14.137639499999999
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "ไม้เค็ด L 2()"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.4134045,
+          14.089490699999999
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "S7 ดงพระราม ()"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.37865049999999,
+          14.0540381
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "P ป้ายเล็ก เมือง 8"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.37183329999999,
+          14.084494099999999
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "ดงพระราม L6 ()"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.38806199999999,
+          14.056286799999999
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "บางบริบูรณ์ s1 ม. 4 "
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.41470269999999,
+          14.0694582
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "PP L3 ดงพระราม ()"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.37025109999999,
+          14.051250099999999
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "Pวัดหลวงเหนือจุด 2 (6)"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.3595012,
+          14.058139299999999
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "P ป้ายเล็กเมือง 1"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.3474628,
+          14.1054798
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "ศ วัดเกาะเค็ดใน 1 (48)"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.4418678,
+          14.0866934
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "Ssss"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.3824703,
+          14.0026154
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "บางเดชะแยกบ้านวิว (70)"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.375113,
+          14.0552245
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "P รร มารี 2 (26)"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.41012819999999,
+          14.055634699999999
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "P L1 บางบริบูรณ์ ()"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.354238,
+          14.105339599999999
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "วัดเกาะเค็ดนอก 2 (47)"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.38806129999999,
+          14.076685399999999
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "Sss4"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.3805622,
+          14.069438
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "SSS1,2"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.4585759,
+          14.0991653
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "เนินไฮ (L6)"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.36339369999999,
+          14.0550216
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "P หน่วย ท 6 จุด 3"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.42861429999999,
+          14.1288285
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "P ดงขี้เหล็ก L3"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.44151339999999,
+          14.106165899999999
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "Ssss"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.36030149999999,
+          14.06766
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "Pดงพระราม 2 "
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.4118475,
+          14.0907925
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "ดงพระราม L2-"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.3744833,
+          14.0700579
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "Sssss"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.37368239999999,
+          14.054040299999999
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "P เมืองเล็ก 5"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.3001851,
+          13.892964599999999
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "จุดติดวังขอน 1 (10)"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.43877549999999,
+          14.072554199999999
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "Sssss"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.4419094,
+          14.1079084
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "Sssss"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.3143636,
+          13.872736199999999
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "กระทุ่มแพ้ว 1 (10)"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.3736455,
+          14.0721311
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "Sssss"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.4414832,
+          14.098622899999999
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "Sssss"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.3882565,
+          14.094569199999999
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "บ้านพระ s1 ()"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.35324089999999,
+          13.961153399999999
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "บ้านสร้าง 69 "
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.35674019999999,
+          14.0591244
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "Pท 6 (2) จุด 4 "
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.41777789999999,
+          14.119295399999999
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "Ssss"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.35582959999999,
+          14.104776399999999
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "วัดเกาะเค็ดนอก 1 (46)"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.3883017,
+          14.077900999999999
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "Ss5"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.3355491,
+          14.015333799999999
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "วัถโบสถ์ 1 (43)"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.381737,
+          13.9831244
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "อรทัยขาออก 1 (20)"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.4283877,
+          14.1341333
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "Sssss"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.4679908,
+          14.094789599999999
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "Sssss"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.39643819999999,
+          14.0868141
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "ดงพระราม s6 ()"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.37540899999999,
+          14.057224699999999
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "ท1 จุด 2 (25)"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.3869606,
+          14.0835748
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "P ดงพระราม L 1 (82”)"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.4411138,
+          14.097542599999999
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "Sssss"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.32652139999999,
+          14.129111
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "p ไม้เค็ด ม.2 (56)"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.3623618,
+          14.0676203
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "P ดงพระราม เล็ก 1"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.40911129999999,
+          14.113581199999999
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "ssssเสาร์ไฟ บ้านพระ s3 "
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.3727895,
+          14.066902899999999
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "P ไทวิเชียรทางออก 1  (23)"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.4175858,
+          14.1176547
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "Sssss"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.36890029999999,
+          14.180409
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "เนินหอม L 2 ()"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.1948417,
+          13.936586499999999
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "บางยาง 2 (36)"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.3438371,
+          13.9388419
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "ศาลา ว บางปลาร้า 2 (17)"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.3373542,
+          14.110290899999999
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "ไม้เค็ด N/a (49)"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.45892769999999,
+          14.0968152
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "P ดงขี้เหล็ก L5 ()"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.37360489999999,
+          14.0571112
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "P ข้างเทศบาล (27)"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.3359682,
+          13.87331
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "นาฝุ่น 1 (11)"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.37885059999999,
+          14.013962699999999
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "เมโทร 1 (21)"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.3691102,
+          14.1007485
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "Pบ้านพระ L4 ถ. สุวรรณใหม่ ()"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.2311766,
+          14.0037924
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "ชิตใจชื่น (42)"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.2236758,
+          13.9880815
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "บ้านสร้าง 1 (39)"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.3658423,
+          14.165226299999999
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "เนินหอม L2 ()"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.2968367,
+          13.9003272
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "วังขอนจุดที่ 1 (9)"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.4176595,
+          14.118491299999999
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "PL2 ดงขี้เหล็ก ()"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.3348711,
+          14.0524223
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "วัดโบสถ์ 2(44)"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.3744475,
+          14.056956099999999
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "P เมืองเล็ก 4"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.3267082,
+          14.1506774
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "ศ หนองชะอม 1 (60)"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.4250014,
+          14.1303576
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "Ssss"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.2418716,
+          13.884288699999999
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "บางขาม 1(31)"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.41737549999999,
+          14.117892999999999
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "L1 ดงขี้เหล็ก ()"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          0.0,
+          0.0
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "address": "ตำบล บ้านพระ อำเภอเมืองปราจีนบุรี ปราจีนบุรี 25230 ไทย",
+        "name": "Ssss"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.36411559999999,
+          14.1364833
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "P จุดติดป้ายวัดเจ้าเงาะ L()"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.31612419999999,
+          13.917777899999999
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "บางปลาร้า จุด 1 (15)"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.4041496,
+          14.0990553
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "Ssss"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.4195793,
+          14.130390799999999
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "Sssss"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.3792697,
+          14.0631407
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "P ท5 จุด 2 (8) "
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.370629,
+          14.1442839
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "ป้ายชุด"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.35029279999999,
+          13.960710899999999
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "ศาลาต้นตะกลู 2(18)"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.34850449999999,
+          14.0592819
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "วัดโบสถ์ 3(45)"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.4190787,
+          13.8408728
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "หน่วยโคกมอญ 1 (14)"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.3768594,
+          14.0652329
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "P อาคารโรงเรียนมารีวิทยา 1 (24)"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.22774969999999,
+          13.9955778
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "ชิตใจชื่น 2 (41)"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.389618,
+          14.083409
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "ดงพระราม S5 (83)"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.4059601,
+          14.1023877
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": " P บ้านพระ L3 ()"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.38742099999999,
+          13.9615917
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "วัดสนามพลี 1(19)"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.3486077,
+          14.1289781
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "ศ. วัดหนองปรือ1 (53) มีท่อประปาย้าย ด่วน"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.3698847,
+          14.103030599999999
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "Sssss"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.3694713,
+          14.1484527
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "เนินหอม S1 ()"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.3584135,
+          14.0647532
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "p รอบเมือง 1"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.3753641,
+          14.0653952
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "Ssss"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.3618012,
+          14.056237
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "P ป้ายเล็กเมือง เซเว่นตาเงาะ 2"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.32426269999999,
+          13.922642399999999
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "ศาลา ว. บางปลาร้า 1(16)"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.3770254,
+          14.0541015
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "P ป้ายเล็ก เมือง 7"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.36292069999999,
+          14.0554122
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "P ป้ายเล็กเมือง 3"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.20684159999999,
+          13.941121599999999
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "วัดบางเตย 1(37)"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.3883135,
+          14.064513799999999
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "บ้านเอื้อ ดงพระราม(30)"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.4430694,
+          14.1378615
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "SS ขอนขว้าง 4"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.3678395,
+          14.0402068
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "P หน่วย วัดหลวงใต้จุดที่  1 (7)"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.3204502,
+          14.1357489
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "P ซอยวาสนาหมู่7 ไม้เค็ด (55)"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.3529083,
+          14.1007521
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "pไม้เค็ด L 1()"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.3844558,
+          14.0610726
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "P ท 5 จุด1 (22)"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.17625269999999,
+          13.9161924
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "วัดบางยาง 1 (35)"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.3270082,
+          14.1101241
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "P N/A ไม้เค็ด (51)"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.2225509,
+          13.9965625
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "ชิตใจชื่น 1 (40)"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.4200413,
+          14.097045399999999
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "Pukmook house"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.3666915,
+          14.0534211
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "P จุดสอง หน่วย รร จงหมิน "
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.3955806,
+          14.0773078
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "PP ดงพระราม L4 (89)"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.44382379999999,
+          14.1312631
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "SS 3 ขอนขวาง"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.21641299999999,
+          13.956204099999999
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "ทางเข้าวัดบางเตย (38)"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.3884308,
+          13.962105099999999
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "บางเดชะ หนองบัวหมู (69)"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.4786476,
+          14.102988999999999
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "รร วัดตะลุมพุก s1,s2 ()"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.3691444,
+          14.1487482
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "Pเนินหอม L1 ()"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.3870656,
+          14.0716872
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "ดงพระราม 4 S (81)"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.3070147,
+          14.1379194
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "วัดบึง 1  ก่อนถึงซากรถ(68)"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.3585296,
+          14.0585878
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "Pเขต ท 6 (3)"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.36511569999999,
+          14.1654431
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "Pอบต เนินหอม"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.3608926,
+          14.0570592
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "P เมือง "
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.3756008,
+          14.055232
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "P เล็ก เมือง 6"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.3846938,
+          14.0699518
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "ดงพระราม 3 S (80)"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.3684014,
+          14.0508198
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "P เขตวัดหลวง จุด 1 (5)"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.36886609999999,
+          14.0682607
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "P ป้ายผอม 2 "
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.4758671,
+          14.129421899999999
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "p โนนห้อม L1"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          0.0,
+          0.0
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "address": "ตำบล รอบเมือง อำเภอเมืองปราจีนบุรี ปราจีนบุรี 25000 ไทย",
+        "name": "หน้าอู่ช่างยา"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.3913457,
+          14.056950899999999
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "ป้ายเล็กหน้าโลตัส"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.40269819999999,
+          14.0471162
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "เลยชูยุ้งคาเฟ่"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.3693677,
+          14.0536774
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "สยามชัย"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.3717988,
+          14.051167099999999
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "หน้าปกณ"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.3678066,
+          14.0402455
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "แยกหมู่บ้านหลังปกณ"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.3574325,
+          14.0545633
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "เลยคาเดด"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.3711282,
+          14.052968
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "สนามบาส"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.3819764,
+          14.0541441
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "ป้ายเล็กหน้า93"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.3563107,
+          14.052688999999999
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "เจ้กิจอาหารป่า"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.36745189999999,
+          14.047331499999999
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "เส้นไปหมู่สาธารณะสุข"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.3872768,
+          14.053047999999999
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "สี่แยกโรงบาล"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          0.0,
+          0.0
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "address": "346 แก้วพิจิตร ตำบล หน้าเมือง อำเภอเมืองปราจีนบุรี ปราจีนบุรี 25000 ไทย",
+        "name": "ป้ายเล็กหน้า93"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.3881495,
+          14.0565993
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "หน้าทางเข้าบ้านบางบริบูรณ์"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.3740522,
+          14.0541366
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "นกดอกไม้"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          0.0,
+          0.0
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "address": "3079 ตำบล ท่างาม อำเภอเมืองปราจีนบุรี ปราจีนบุรี 25000 ไทย",
+        "name": "หน้ารพ."
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.3652867,
+          14.0537362
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "แยกจงหมิน"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.38194899999999,
+          14.056151799999999
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "address": "119/5 ถนน ปราจีน-ตะคาม ตำบล หน้าเมือง อำเภอเมืองปราจีนบุรี ปราจีนบุรี 25000 ไทย",
+        "name": "ป้ายเล็กเอกภาพโฮมมาท"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.3721434,
+          14.053324499999999
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "หน้สบาบูแบร์"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.3632284,
+          14.0548892
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "หน้าสน."
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.39534959999999,
+          14.0572856
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "ป้ายเล็กหน้าโรบินสัน"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.3750027,
+          14.0553198
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "หน้าแวดไวซ์"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.36763499999999,
+          14.0508399
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "หน้าร้านป้าขาหมูสวนสาธารณะ"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.379481,
+          14.063257499999999
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "ป้ายเล็กแยกวัดแจ้งปตท."
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          0.0,
+          0.0
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "address": "3452 ตำบล หน้าเมือง อำเภอเมืองปราจีนบุรี ปราจีนบุรี 25000 ไทย",
+        "name": "หมอนพดล"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          0.0,
+          0.0
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "address": "493 3079 ตำบล ท่างาม อำเภอเมืองปราจีนบุรี ปราจีนบุรี 25000 ไทย",
+        "name": "หน้ารพ."
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.3566185,
+          14.065012699999999
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "อู่ช่างยา"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.3735432,
+          14.069014899999999
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "หมอพงศักดิ์"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.3624064,
+          14.0676025
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "เลยอบตรอบเมือง"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.37166669999999,
+          14.053208
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "หน้าสมประสงค์"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          0.0,
+          0.0
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "address": "29 ทัศนวิถี ตำบล หน้าเมือง อำเภอเมืองปราจีนบุรี ปราจีนบุรี 25000 ไทย",
+        "name": "ป้ายเล็กหน้าอู่ Smt"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.3724026,
+          14.0538803
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "แยก7-11"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          0.0,
+          0.0
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "address": "97-99 ถนน เทศบาลดำริ ตำบล หน้าเมือง อำเภอเมืองปราจีนบุรี ปราจีนบุรี 25000 ไทย",
+        "name": "หน้าหมอสนิท"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.3874977,
+          14.0566458
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "ป้ายเล็กหน้าบ้านเอื้อ"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          101.3786662,
+          14.0540472
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "name": "ป้ายเล็กคลองถม"
+      },
+      "type": "Feature"
+    }
+  ],
+  "type": "FeatureCollection"
+}

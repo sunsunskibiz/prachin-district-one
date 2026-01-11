@@ -59,9 +59,55 @@ def save_comment(comment: dict):
     except Exception as e:
         st.error(f"Error saving comment: {e}")
 
+def delete_comment(comment_to_delete: dict):
+    """Deletes a single comment from CSV file (Local + GCS Sync)."""
+    try:
+        if not os.path.exists(COMMENTS_FILE):
+            return
+
+        df = pd.read_csv(COMMENTS_FILE)
+        
+        # Filter based on lat/lon/text/timestamp to find the row to remove
+        # We need to be careful about floating point comparison for lat/lon
+        # But usually exact match from the file load works if we use the string representation or tolerance
+        # Ideally, we should have a unique ID, but for now we match fields.
+        
+        # Create a mask for matching
+        mask = (
+            (df['latitude'] == comment_to_delete['latitude']) & 
+            (df['longitude'] == comment_to_delete['longitude']) & 
+            (df['text'] == comment_to_delete['text'])
+        )
+        
+        # If timestamp exists in both, use it too
+        if 'timestamp' in comment_to_delete and 'timestamp' in df.columns:
+             # handle NaN in file vs string in dict
+             target_ts = comment_to_delete['timestamp']
+             # Ensure string comparison
+             mask = mask & (df['timestamp'].fillna('').astype(str) == str(target_ts))
+
+        # Keep rows that match the mask FALSE (i.e. keep rows that are NOT the comment to delete)
+        # However, we only want to delete ONE match if duplicates exist? 
+        # Or all matches? Let's delete all matches of this specific comment content.
+        df_new = df[~mask]
+        
+        df_new.to_csv(COMMENTS_FILE, index=False)
+            
+        # Sync to GCS
+        with open(COMMENTS_FILE, 'r') as f:
+            full_csv_content = f.read()
+            
+        from .gcs_utils import upload_text_to_gcs
+        upload_text_to_gcs(full_csv_content, GCS_BUCKET_NAME, f"shared/{COMMENTS_FILE}")
+            
+    except Exception as e:
+        st.error(f"Error deleting comment: {e}")
+
+
 @st.cache_data
 def load_csv_data(filepath: str) -> pd.DataFrame:
     """Loads election data from CSV."""
+
     if not os.path.exists(filepath):
         st.error(f"File not found: {filepath}")
         return pd.DataFrame()
@@ -181,3 +227,38 @@ def calculate_votes_by_subdistrict(df_election):
              df_display['Winner_Pct'] = 0
 
     return df_display
+
+@st.cache_data
+def load_campaign_pins() -> Optional[gpd.GeoDataFrame]:
+    """Loads and merges campaign pins from multiple JSON files."""
+    from .constants import CAMPAIGN_PINS_FILES
+    
+    gdfs = []
+    
+    for filepath in CAMPAIGN_PINS_FILES:
+        if os.path.exists(filepath):
+            try:
+                gdf = gpd.read_file(filepath)
+                if not gdf.empty:
+                    gdfs.append(gdf)
+            except Exception as e:
+                st.warning(f"Error loading {filepath}: {e}")
+    
+    if not gdfs:
+        return None
+        
+    try:
+        # Merge all dataframes
+        gdf_merged = pd.concat(gdfs, ignore_index=True)
+        
+        # Ensure 'name' exists for tooltip
+        if 'name' not in gdf_merged.columns:
+             gdf_merged['name'] = "Campaign Pin"
+        else:
+             # Fill missing names
+             gdf_merged['name'] = gdf_merged['name'].fillna("Campaign Pin")
+             
+        return gdf_merged
+    except Exception as e:
+        st.error(f"Error merging campaign pins: {e}")
+        return None
