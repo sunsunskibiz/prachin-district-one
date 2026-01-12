@@ -5,7 +5,8 @@ from fastkml import kml
 from typing import Optional
 import os
 import io
-from .constants import COMMENTS_FILE, GCS_BUCKET_NAME
+from .constants import COMMENTS_FILE, GCS_BUCKET_NAME, COLORS_FILE
+import json
 # Note: Circular import risk if we import load_kml_from_gcs here if it imports this.
 # Avoiding circular import by importing inside function or using separate module structure correctly.
 # Ideally gcs_utils should not import data_utils if data_utils uses gcs_utils.
@@ -103,6 +104,59 @@ def delete_comment(comment_to_delete: dict):
     except Exception as e:
         st.error(f"Error deleting comment: {e}")
 
+
+def load_subdistrict_colors() -> dict:
+    """Loads subdistrict colors from JSON file (First GCS, then Local fallback)."""
+    # Try GCS First (Sync)
+    from .gcs_utils import download_text_from_gcs
+    try:
+        json_text = download_text_from_gcs(GCS_BUCKET_NAME, f"shared/{COLORS_FILE}")
+        if json_text:
+            data = json.loads(json_text)
+            # Save to local for fallback/cache
+            with open(COLORS_FILE, 'w') as f:
+                json.dump(data, f)
+            return data
+    except Exception as e:
+        # st.warning(f"Note: Could not load colors from GCS: {e}") 
+        pass
+
+    # Fallback to local
+    if os.path.exists(COLORS_FILE):
+        try:
+            with open(COLORS_FILE, 'r') as f:
+                return json.load(f)
+        except Exception as e:
+            return {}
+    return {}
+
+def save_subdistrict_color(sub_district_name: str, color_key: str):
+    """Saves a subdistrict color assignment (Local + GCS Sync)."""
+    try:
+        # Load current state
+        if os.path.exists(COLORS_FILE):
+             with open(COLORS_FILE, 'r') as f:
+                try:
+                    data = json.load(f)
+                except:
+                    data = {}
+        else:
+            data = {}
+        
+        # Update
+        data[sub_district_name] = color_key
+        
+        # Save Local
+        with open(COLORS_FILE, 'w') as f:
+            json.dump(data, f)
+            
+        # Sync to GCS
+        json_content = json.dumps(data)
+        from .gcs_utils import upload_text_to_gcs
+        upload_text_to_gcs(json_content, GCS_BUCKET_NAME, f"shared/{COLORS_FILE}")
+            
+    except Exception as e:
+        st.error(f"Error saving color: {e}")
 
 @st.cache_data
 def load_csv_data(filepath: str) -> pd.DataFrame:
