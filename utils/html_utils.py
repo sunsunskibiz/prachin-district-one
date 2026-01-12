@@ -1,4 +1,4 @@
-ฑimport pandas as pd
+import pandas as pd
 
 def get_subdistrict_tooltip(row):
     # 1. Title: Sub-district Name
