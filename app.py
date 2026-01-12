@@ -202,14 +202,21 @@ def _main_app_logic(username):
     tab_overview, tab_analysis = st.tabs(["Overview", "Analysis Details"])
     
     with tab_overview:
+        selected_units = []
+        filtered_locations = None
+        
         # Search Feature (Main Area)
         if not df_election.empty and 'ชื่อหน่วยเลือกตั้ง' in df_election.columns:
             all_units = sorted(df_election['ชื่อหน่วยเลือกตั้ง'].astype(str).unique().tolist())
             selected_units = st.multiselect("🔍 Search Election Unit", options=all_units, placeholder="Type to search unit name...")
             
             if selected_units:
-                df_election = df_election[df_election['ชื่อหน่วยเลือกตั้ง'].isin(selected_units)]
-                st.success(f"Showing {len(df_election)} filtered points.")
+                # Find locations of selected units
+                # We do NOT filter df_election here so that aggregation picks up neighbors
+                target_rows = df_election[df_election['ชื่อหน่วยเลือกตั้ง'].isin(selected_units)]
+                filtered_locations = target_rows[['latitude', 'longitude']].drop_duplicates()
+                
+                st.success(f"Found {len(target_rows)} matching units. Showing all units at these locations.")
                 show_points = True # Force show points on map if user is searching
 
         if gdf_districts is not None and not gdf_districts.empty:
@@ -373,6 +380,27 @@ def _main_app_logic(username):
                 return header + info_table + chart_header + chart_table
             
              df_election['tooltip_html'] = df_election.apply(get_election_html, axis=1)
+
+             df_election['tooltip_html'] = df_election.apply(get_election_html, axis=1)
+
+             # --- GRID LAYOUT AGGREGATION FOR OVERLAPPING POINTS ---
+             # Group by Lat/Lon and aggregate tooltips into a Grid (3 per row)
+             def aggregate_tooltips(series):
+                 # Item style: Fixed width 300px
+                 item_style = "flex: 0 0 300px; border: 1px solid #ddd; padding: 5px; background: rgba(255,255,255,0.1); border-radius: 4px;"
+                 items = "".join([f"<div style='{item_style}'>{html}</div>" for html in series])
+                 
+                 # Container style: Flex wrap, set width to fit 3 items (approx 3 * 310 + gaps)
+                 container_style = "display: flex; flex-wrap: wrap; gap: 10px; width: fit-content; max-width: 950px;"
+                 return f"<div style='{container_style}'>{items}</div>"
+             
+             # Create new display dataframe with unique coordinates
+             df_map_points = df_election.groupby(['latitude', 'longitude'])['tooltip_html'].agg(aggregate_tooltips).reset_index()
+             
+             # Apply Search Filter to Map Points
+             if filtered_locations is not None:
+                 df_map_points = df_map_points.merge(filtered_locations, on=['latitude', 'longitude'], how='inner')
+
     
         # Initialize Session State for Comments from File
         if 'comments' not in st.session_state:
@@ -381,11 +409,13 @@ def _main_app_logic(username):
         # Sidebar Controls
         st.sidebar.header("Layer Controls")
         show_districts = st.sidebar.checkbox("แสดงเขตตำบล", value=True)
-        show_comments = st.sidebar.checkbox("Comments", value=True)
         show_winner = st.sidebar.checkbox("แสดงเขตผู้ชนะ", value=False)
         show_points = st.sidebar.checkbox("หน่วยเลือกตั้ง", value=True)
         show_campaign_pins = st.sidebar.checkbox("จุดติดป้าย", value=False)
-        
+
+        st.sidebar.markdown("**Comment:**")
+        show_comments = st.sidebar.checkbox("แสดงข้อความ", value=True)
+
         st.sidebar.markdown("**Color Highlights:**")
         show_color_orange = st.sidebar.checkbox("Fill Orange (Som)", value=True)
         show_color_green = st.sidebar.checkbox("Fill Low-Green", value=True)
@@ -556,10 +586,10 @@ def _main_app_logic(username):
             layers.append(layer_winner)
 
         if show_points and not df_election.empty:
-            # Scatterplot Layer
+            # Scatterplot Layer (Using Aggregated Data)
             layer_points = pdk.Layer(
                 "ScatterplotLayer",
-                df_election,
+                df_map_points, # <--- Use aggregated DF
                 id="layer_points",
                 get_position=['longitude', 'latitude'],
                 get_color=[255, 65, 54, 200], # Redish
@@ -644,8 +674,14 @@ def _main_app_logic(username):
         # Center map on data
         if not df_election.empty:
             # Dynamic Zoom Logic
-            # If we are validly filtered to a single point (or very few), zoom in close.
-            row_count = len(df_election)
+            # If we match a search (filtered_locations), focus on that. 
+            # Otherwise focus on full dataset.
+            
+            target_df = df_election
+            if filtered_locations is not None and not filtered_locations.empty:
+                target_df = filtered_locations
+                
+            row_count = len(target_df)
             
             # Default zoom
             zoom_level = 10
@@ -656,8 +692,8 @@ def _main_app_logic(username):
                 zoom_level = 13
             
             initial_view_state = pdk.ViewState(
-                latitude=df_election['latitude'].mean(),
-                longitude=df_election['longitude'].mean(),
+                latitude=target_df['latitude'].mean(),
+                longitude=target_df['longitude'].mean(),
                 zoom=zoom_level,
                 pitch=0,
             )
@@ -668,7 +704,7 @@ def _main_app_logic(username):
         # We use the pre-calculated 'tooltip_html' column from dataframes
         tooltip = {
             "html": "{tooltip_html}", 
-            "style": {"backgroundColor": "steelblue", "color": "white", "maxWidth": "300px"}
+            "style": {"backgroundColor": "steelblue", "color": "white", "maxWidth": "1000px"} # Large width for 3-col grid
         }
     
         # Render Map - Using Selected Style
@@ -680,17 +716,22 @@ def _main_app_logic(username):
         )
     
         # st.pydeck_chart(r, key="main_map") # Old
-        st.pydeck_chart(r, key="main_map", on_select="rerun", selection_mode="single-object")
+        st.pydeck_chart(r, key="main_map", on_select="rerun", selection_mode="single-object", height=700)
 
         # Google Maps Links for Selected Points
-        if not df_election.empty and len(df_election) < 20: 
+        # Use filtered list if search is active, otherwise use full list (limited to 20)
+        df_links = df_election
+        if selected_units:
+            df_links = df_election[df_election['ชื่อหน่วยเลือกตั้ง'].isin(selected_units)]
+
+        if not df_links.empty and len(df_links) < 20: 
             # Only show if reasonable number, otherwise list is too long. 
             # If search is active (implied by small number usually), show links.
             st.markdown("### 📍 Location Links")
             st.markdown("Click below to open in Google Maps:")
             
             # Use columns to make it compact? Or just a list. A list is clearer.
-            for index, row in df_election.iterrows():
+            for index, row in df_links.iterrows():
                 lat = row['latitude']
                 lon = row['longitude']
                 name = row.get('ชื่อหน่วยเลือกตั้ง', 'Location')
