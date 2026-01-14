@@ -41,6 +41,182 @@ def setup_auth():
     )
     return authenticator, config
 
+def create_map_layers(
+    gdf_districts, subdistrict_colors,
+    show_districts, show_winner, show_points, show_campaign_pins, show_comments,
+    show_color_orange, show_color_green, show_color_yellow, show_color_blue,
+    active_uploaded_layers, kml_layers,
+    df_map_points, gdf_campaign_pins, df_comments_agg
+):
+    layers = []
+
+    if show_districts and gdf_districts is not None:
+        # 1. Mask Layer (Gray out outside)
+        gdf_mask = create_mask_polygon(gdf_districts)
+        if gdf_mask is not None:
+             layer_mask = pdk.Layer(
+                "GeoJsonLayer",
+                gdf_mask,
+                id="layer_mask",
+                opacity=0.5,
+                stroked=False,
+                filled=True,
+                get_fill_color=[128, 128, 128, 100], # Gray, semi-transparent
+                pickable=False,
+            )
+             layers.append(layer_mask)
+
+        # 2. Polygon Layer - Blue Lines Style
+        def get_district_fill_color(row):
+             s_name = row.get('sub_district_name', '')
+             assigned_color = subdistrict_colors.get(s_name, None)
+             
+             base_alpha = 140
+             
+             if assigned_color == 'orange' and show_color_orange:
+                 return [255, 165, 0, base_alpha]
+             elif assigned_color == 'green' and show_color_green:
+                 return [144, 238, 144, base_alpha]
+             elif assigned_color == 'yellow' and show_color_yellow:
+                 return [255, 255, 224, base_alpha]
+             elif assigned_color == 'blue' and show_color_blue:
+                 return [173, 216, 230, base_alpha]
+             
+             return [0, 0, 0, 0] 
+
+        gdf_districts['const_fill_color'] = gdf_districts.apply(get_district_fill_color, axis=1)
+
+        layer_districts = pdk.Layer(
+            "GeoJsonLayer",
+            gdf_districts,
+            id="layer_districts",
+            opacity=1.0,
+            stroked=True,
+            filled=True, 
+            get_fill_color="const_fill_color", 
+            get_line_color=[0, 0, 255, 255],
+            get_line_width=30,
+            lineWidthMinPixels=2, 
+            pickable=True, 
+            auto_highlight=True,
+            wireframe=True,
+            highlight_color=[0, 0, 255, 128],
+        )
+        layers.append(layer_districts)
+
+    if active_uploaded_layers:
+        layers_to_process = []
+        for name in active_uploaded_layers:
+            layer = kml_layers.get(name)
+            if layer is not None:
+                layers_to_process.append(layer)
+
+        if layers_to_process:
+             # Using the process_path_overlaps (assuming st.spinner context is handled by caller or ignored here)
+             # To avoid UI blocking logic inside helper, we just run it. 
+             # Note: 'process_path_overlaps' is cached so it should be fast.
+             gdf_merged = process_path_overlaps(layers_to_process, active_uploaded_layers)
+        
+             if gdf_merged is not None and not gdf_merged.empty:
+                layer_uploaded = pdk.Layer(
+                    "GeoJsonLayer",
+                    gdf_merged,
+                    id="layer-uploaded-merged",
+                    opacity=1.0,
+                    stroked=True,
+                    filled=False, 
+                    get_line_color="color",
+                    get_line_width=30,
+                    lineWidthMinPixels=2,
+                    pickable=False,
+                )
+                layers.append(layer_uploaded)
+
+    if show_winner and gdf_districts is not None and 'Winner' in gdf_districts.columns:
+        def get_winner_color(row):
+            winner = row.get('Winner', '')
+            pct = row.get('Winner_Pct', 0)
+            try:
+                pct_val = float(pct)
+            except (ValueError, TypeError):
+                pct_val = 0
+
+            if pct_val > 45: alpha = 200
+            elif pct_val >= 30: alpha = 120
+            else: alpha = 60
+
+            if winner == 'ภูมิใจไทย': return [0, 0, 255, alpha] 
+            elif winner == 'ก้าวไกล': return [255, 165, 0, alpha]
+            elif winner == 'เพื่อไทย': return [255, 0, 0, alpha]
+            else: return [200, 200, 200, 50]
+        
+        gdf_districts['winner_color'] = gdf_districts.apply(get_winner_color, axis=1)
+
+        layer_winner = pdk.Layer(
+            "GeoJsonLayer",
+            gdf_districts,
+            id="layer_winner",
+            opacity=1.0,
+            stroked=True,
+            filled=True,
+            get_fill_color="winner_color",
+            get_line_color=[255, 255, 255, 100],
+            get_line_width=10,
+            pickable=True,
+            auto_highlight=True,
+            highlight_color=[0, 255, 255, 100],
+        )
+        layers.append(layer_winner)
+
+    if show_points and df_map_points is not None and not df_map_points.empty:
+        layer_points = pdk.Layer(
+            "ScatterplotLayer",
+            df_map_points,
+            id="layer_points",
+            get_position=['longitude', 'latitude'],
+            get_color=[255, 65, 54, 200],
+            get_radius=100,
+            pickable=True,
+            auto_highlight=True,
+        )
+        layers.append(layer_points)
+        
+    if show_campaign_pins and gdf_campaign_pins is not None:
+         import math
+         layer_campaign = pdk.Layer(
+            "ColumnLayer",
+            gdf_campaign_pins,
+            id="layer_campaign_pins",
+            get_position=['geometry.coordinates[0]', 'geometry.coordinates[1]'],
+            get_fill_color=[128, 0, 128, 200],
+            get_line_color=[255, 255, 255, 255],
+            get_line_width=2,
+            radius=100,
+            disk_resolution=4,
+            get_angle=math.pi / 4,
+            get_elevation=0,
+            extruded=False,
+            stroked=True,
+            pickable=True,
+            auto_highlight=True,
+        )
+         layers.append(layer_campaign)
+    
+    if show_comments and df_comments_agg is not None and not df_comments_agg.empty:
+        layer_comments = pdk.Layer(
+            "ScatterplotLayer", 
+            df_comments_agg,
+            id="layer_comments",
+            get_position=['longitude', 'latitude'],
+            get_fill_color=[0, 255, 0, 255],
+            get_radius=300, 
+            pickable=True,
+            auto_highlight=True,
+        )
+        layers.append(layer_comments)
+
+    return layers
+
 def main():
     logger.info("--- Main App Run ---")
     # Auth Check
@@ -176,6 +352,48 @@ def _main_app_logic(username):
 
 
     # Pre-process Data for Map
+    
+    # --- Sidebar Controls (Moved here to be available for all tabs) ---
+    st.sidebar.header("Layer Controls")
+    show_districts = st.sidebar.checkbox("แสดงเขตตำบล", value=True)
+    show_winner = st.sidebar.checkbox("แสดงเขตผู้ชนะ", value=False)
+    show_points = st.sidebar.checkbox("หน่วยเลือกตั้ง", value=True)
+    show_campaign_pins = st.sidebar.checkbox("จุดติดป้าย", value=False)
+
+    st.sidebar.markdown("**Comment:**")
+    show_comments = st.sidebar.checkbox("แสดงข้อความ", value=True)
+
+    st.sidebar.markdown("**Color Highlights:**")
+    st.sidebar.caption("Go to 'Layer Settings' tab to configure.")
+    
+    # Dynamic Controls for Uploaded Layers
+    active_uploaded_layers = []
+    if st.session_state['kml_layers']:
+        st.sidebar.markdown("**Uploaded Layers:**")
+        for name in st.session_state['kml_layers'].keys():
+            if st.sidebar.checkbox(f"Show {name}", value=True):
+                active_uploaded_layers.append(name)
+        
+        if st.sidebar.button("Clear All Uploaded Layers"):
+            st.session_state['kml_layers'] = {}
+            st.rerun()
+        
+    st.sidebar.markdown("---")
+    st.sidebar.header("Map Style")
+    map_style_selection = st.sidebar.radio(
+        "Select Base Map",
+        options=["Satellite", "Default (Light)", "Terrain (ภูมิประเทศ)"],
+        index=1
+    )
+    
+    # Map Style Mapping
+    map_styles = {
+        "Satellite": "mapbox://styles/mapbox/satellite-v9",
+        "Default (Light)": "mapbox://styles/mapbox/light-v9",
+        "Terrain (ภูมิประเทศ)": "mapbox://styles/mapbox/outdoors-v12"
+    }
+    selected_map_style = map_styles.get(map_style_selection, "mapbox://styles/mapbox/light-v9")
+    
     df_votes_by_district = pd.DataFrame()
     if not df_election.empty:
         df_votes_by_district = calculate_votes_by_subdistrict(df_election)
@@ -198,9 +416,158 @@ def _main_app_logic(username):
                  gdf_districts['Winner'] = gdf_districts['Winner'].fillna("Unknown")
             if 'Winner_Pct' in gdf_districts.columns:
                  gdf_districts['Winner_Pct'] = gdf_districts['Winner_Pct'].fillna(0)
+                 
+        # Generate Tooltips for Districts (Needed for all maps)
+        gdf_districts['tooltip_html'] = gdf_districts.apply(get_subdistrict_tooltip, axis=1)
 
+    # Pre-process Data for Points (Moved out of tabs for access)
+    df_map_points = pd.DataFrame()
+    filtered_locations = None
+    selected_units = []
+    
+    # 1. Search Logic (Pre-calc)
+    if not df_election.empty and 'ชื่อหน่วยเลือกตั้ง' in df_election.columns:
+         # We need to know if searching is active to filter locations, 
+         # BUT the UI for search is inside Overview tab. 
+         # To make 'df_map_points' available everywhere, we might need to render search UI early OR just default to all points here 
+         # and apply filtering later? 
+         # Actually, the user wants the map in Settings to work. 
+         # Let's initialize defaults here and refine inside Overview if needed? 
+         # No, 'df_map_points' depends on 'filtered_locations' which depends on 'selected_units'.
+         # Let's keep search UI in Overview but maybe move the aggregation logic to a shared block.
+         pass # Logic stays in overview for UI, but aggregation function is reused.
+         
+    # 2. Aggregation Logic
+    if not df_election.empty:
+         df_election['tooltip_html'] = df_election.apply(get_election_html, axis=1)
+         df_map_points = df_election.groupby(['latitude', 'longitude'])['tooltip_html'].agg(aggregate_tooltips).reset_index()
+
+    # 3. Comments Logic
+    df_comments_agg = pd.DataFrame()
+    if 'comments' not in st.session_state:
+        st.session_state['comments'] = load_comments()
+        
+    if st.session_state['comments']:
+        df_raw = pd.DataFrame(st.session_state['comments'])
+        if 'timestamp' not in df_raw.columns: df_raw['timestamp'] = ''
+        if not df_raw.empty:
+             df_comments_agg = df_raw.groupby(['latitude', 'longitude']).apply(
+                lambda x: pd.Series({
+                    'tooltip_html': create_timeline_html(x),
+                    'count': len(x)
+                })
+             ).reset_index()
+    
     # Create Tabs
-    tab_overview, tab_analysis = st.tabs(["Overview", "Analysis Details"])
+    tab_overview, tab_analysis, tab_color_assign = st.tabs(["Overview", "Analysis Details", "Color Assign"])
+
+    # --- TAB: LAYER SETTINGS (Must run before Overview to set variables) ---
+    with tab_color_assign:
+        st.header("Color Management")
+        
+        st.subheader("Layer Visibility")
+        show_color_orange = st.checkbox("Fill Orange (Som)", value=True)
+        show_color_green = st.checkbox("Fill Low-Green", value=True)
+        show_color_yellow = st.checkbox("Fill Low-Yellow", value=True)
+        show_color_blue = st.checkbox("Fill Low-Blue", value=True)
+        
+        st.divider()
+        st.subheader("Assign Color to District")
+        
+        # Helper map for selection
+        st.markdown("Select a district on the map below to assign color:")
+        
+        # Build Layers for Settings Map
+        # Note: We use the *current* visibility settings from this tab + sidebar defaults
+        layers_settings = create_map_layers(
+            gdf_districts, subdistrict_colors,
+            show_districts, show_winner, False, False, False, # Hide points/comments in settings map for clarity? Or keep them? User said "map for select". Clarity is better.
+            show_color_orange, show_color_green, show_color_yellow, show_color_blue,
+            [], st.session_state['kml_layers'], # No uploaded layers in settings map to avoid clutter
+            None, None, None 
+        )
+        
+        # View State for Settings Map (can be static or same as main)
+        view_state_settings = pdk.ViewState(latitude=14.0, longitude=101.5, zoom=9)
+        
+        st.pydeck_chart(
+            pdk.Deck(
+                layers=layers_settings,
+                initial_view_state=view_state_settings,
+                map_style="mapbox://styles/mapbox/light-v9",
+                tooltip={"html": "{tooltip_html}", "style": {"color": "white"}}
+            ),
+            key="settings_map",
+            on_select="rerun",
+            selection_mode="single-object",
+        )
+        # Check if selection exists in session state (settings_map)
+        selection_state = st.session_state.get("settings_map", {})
+        
+        # Check main map selection as fallback if user just switched tabs (optional, but good UX)
+        if not selection_state.get("selection"):
+             selection_state = st.session_state.get("main_map", {})
+        
+        # Logic to determine selected district
+        default_sub_name = ""
+        valid_subdistrict = False
+        
+        if selection_state and "selection" in selection_state:
+            selection = selection_state["selection"]
+            if selection and "objects" in selection and selection["objects"]:
+                # Get the last selected object
+                obj = selection["objects"].values()
+                for obj_list in obj:
+                    if obj_list:
+                        selected_data = obj_list[0]
+                        # Try to extract sub_district_name
+                        if 'sub_district_name' in selected_data:
+                            default_sub_name = selected_data['sub_district_name']
+                            valid_subdistrict = True
+                        elif 'properties' in selected_data and 'sub_district_name' in selected_data['properties']:
+                            default_sub_name = selected_data['properties']['sub_district_name']
+                            valid_subdistrict = True
+        
+        if valid_subdistrict:
+             st.markdown(f"**Target District:** `{default_sub_name}`")
+             
+             # Get current color
+             current_color = subdistrict_colors.get(default_sub_name, 'None')
+             
+             color_options = {
+                 'None': 'Default (None)',
+                 'orange': 'Orange (Som)',
+                 'green': 'Low-Green',
+                 'yellow': 'Low-Yellow',
+                 'blue': 'Low-Blue'
+             }
+             
+             # Find index
+             options_keys = list(color_options.keys())
+             try:
+                 default_ix = options_keys.index(current_color)
+             except:
+                 default_ix = 0
+                 
+             selected_color_key = st.selectbox(
+                 "Assign Color", 
+                 options=options_keys,
+                 format_func=lambda x: color_options[x],
+                 index=default_ix
+             )
+             
+             if st.button("Save Color Assignment"):
+                 if selected_color_key == 'None':
+                      pass
+                 
+                 save_subdistrict_color(default_sub_name, selected_color_key)
+                 st.success(f"Assigned {selected_color_key} to {default_sub_name}")
+                 time.sleep(1) 
+                 st.rerun()
+                 
+        else:
+             st.info("Select a District polygon on the map above to assign a color.")
+
     
     with tab_overview:
         selected_units = []
@@ -223,10 +590,7 @@ def _main_app_logic(username):
         if gdf_districts is not None and not gdf_districts.empty:
             # Helper to safely get KML columns - for default districts
             kml_cols = gdf_districts.columns
-        
-            # get_subdistrict_tooltip is now imported from utils.html_utils
-            gdf_districts['tooltip_html'] = gdf_districts.apply(get_subdistrict_tooltip, axis=1)
-
+            # Tooltips are now pre-calculated
         else:
             st.sidebar.warning("Failed to load default KML polygons")
 
@@ -244,269 +608,37 @@ def _main_app_logic(username):
              # aggregate_tooltips is now imported from utils.html_utils
 
              
-             # Create new display dataframe with unique coordinates
-             df_map_points = df_election.groupby(['latitude', 'longitude'])['tooltip_html'].agg(aggregate_tooltips).reset_index()
+             # Create new display dataframe with unique coordinates (Now handled before tabs)
+             # df_map_points = df_election.groupby(['latitude', 'longitude'])['tooltip_html'].agg(aggregate_tooltips).reset_index()
              
              # Apply Search Filter to Map Points
              if filtered_locations is not None:
                  df_map_points = df_map_points.merge(filtered_locations, on=['latitude', 'longitude'], how='inner')
 
     
-        # Initialize Session State for Comments from File
-        if 'comments' not in st.session_state:
-            st.session_state['comments'] = load_comments()
+        # Initialize Session State for Comments from File (Now handled before tabs)
+        # if 'comments' not in st.session_state:
+        #    st.session_state['comments'] = load_comments()
 
         # Sidebar Controls
-        st.sidebar.header("Layer Controls")
-        show_districts = st.sidebar.checkbox("แสดงเขตตำบล", value=True)
-        show_winner = st.sidebar.checkbox("แสดงเขตผู้ชนะ", value=False)
-        show_points = st.sidebar.checkbox("หน่วยเลือกตั้ง", value=True)
-        show_campaign_pins = st.sidebar.checkbox("จุดติดป้าย", value=False)
-
-        st.sidebar.markdown("**Comment:**")
-        show_comments = st.sidebar.checkbox("แสดงข้อความ", value=True)
-
-        st.sidebar.markdown("**Color Highlights:**")
-        show_color_orange = st.sidebar.checkbox("Fill Orange (Som)", value=True)
-        show_color_green = st.sidebar.checkbox("Fill Low-Green", value=True)
-        show_color_yellow = st.sidebar.checkbox("Fill Low-Yellow", value=True)
-        show_color_blue = st.sidebar.checkbox("Fill Low-Blue", value=True)
+    
+        # Prepare Pydeck Layers (Using Helper)
         
-        # Dynamic Controls for Uploaded Layers
-        active_uploaded_layers = []
-        if st.session_state['kml_layers']:
-            st.sidebar.markdown("**Uploaded Layers:**")
-            for name in st.session_state['kml_layers'].keys():
-                if st.sidebar.checkbox(f"Show {name}", value=True):
-                    active_uploaded_layers.append(name)
-            
-            if st.sidebar.button("Clear All Uploaded Layers"):
-                st.session_state['kml_layers'] = {}
-                st.rerun()
-            
-        st.sidebar.markdown("---")
-        st.sidebar.header("Map Style")
-        map_style_selection = st.sidebar.radio(
-            "Select Base Map",
-            options=["Satellite", "Default (Light)", "Terrain (ภูมิประเทศ)"],
-            index=1
+        # Apply Search Filter to Map Points for Main Map
+        df_map_points_filtered = df_map_points.copy() if not df_map_points.empty else pd.DataFrame()
+        
+        if filtered_locations is not None and not df_map_points_filtered.empty:
+             df_map_points_filtered = df_map_points_filtered.merge(
+                filtered_locations, on=['latitude', 'longitude'], how='inner'
+             )
+
+        layers = create_map_layers(
+            gdf_districts, subdistrict_colors,
+            show_districts, show_winner, show_points, show_campaign_pins, show_comments,
+            show_color_orange, show_color_green, show_color_yellow, show_color_blue,
+            active_uploaded_layers, st.session_state['kml_layers'],
+            df_map_points_filtered, gdf_campaign_pins, df_comments_agg
         )
-        
-        # Map Style Mapping
-        map_styles = {
-            "Satellite": "mapbox://styles/mapbox/satellite-v9",
-            "Default (Light)": "mapbox://styles/mapbox/light-v9",
-            "Terrain (ภูมิประเทศ)": "mapbox://styles/mapbox/outdoors-v12"
-        }
-        selected_map_style = map_styles.get(map_style_selection, "mapbox://styles/mapbox/light-v9")
-    
-        # Prepare Pydeck Layers
-        layers = []
-    
-        if show_districts and gdf_districts is not None:
-            # 1. Mask Layer (Gray out outside)
-            gdf_mask = create_mask_polygon(gdf_districts)
-            if gdf_mask is not None:
-                 layer_mask = pdk.Layer(
-                    "GeoJsonLayer",
-                    gdf_mask,
-                    id="layer_mask",
-                    opacity=0.5,
-                    stroked=False,
-                    filled=True,
-                    get_fill_color=[128, 128, 128, 100], # Gray, semi-transparent
-                    pickable=False,
-                )
-                 layers.append(layer_mask)
-
-            # 2. Polygon Layer - Blue Lines Style (Requested) + Color Fill Feature
-            # Assign colors to GDF based on subdistrict_colors dict
-            def get_district_fill_color(row):
-                 # Get standard name
-                 s_name = row.get('sub_district_name', '')
-                 assigned_color = subdistrict_colors.get(s_name, None)
-                 
-                 base_alpha = 140
-                 
-                 if assigned_color == 'orange' and show_color_orange:
-                     return [255, 165, 0, base_alpha]
-                 elif assigned_color == 'green' and show_color_green:
-                     return [144, 238, 144, base_alpha] # Light Green
-                 elif assigned_color == 'yellow' and show_color_yellow:
-                     return [255, 255, 224, base_alpha] # Light Yellow
-                 elif assigned_color == 'blue' and show_color_blue:
-                     return [173, 216, 230, base_alpha] # Light Blue
-                 
-                 return [0, 0, 0, 0] # Transparent
-
-            gdf_districts['const_fill_color'] = gdf_districts.apply(get_district_fill_color, axis=1)
-
-            layer_districts = pdk.Layer(
-                "GeoJsonLayer",
-                gdf_districts,
-                id="layer_districts",
-                opacity=1.0,
-                stroked=True,
-                filled=True, 
-                get_fill_color="const_fill_color", 
-                get_line_color=[0, 0, 255, 255], # Blue lines
-                get_line_width=30,
-                lineWidthMinPixels=2, # Ensure visibility at high zoom levels
-                pickable=True, # Make sure it's pickable for color assignment
-                auto_highlight=True, # Highlight on hover
-                wireframe=True,
-                highlight_color=[0, 0, 255, 128], # Blue highlight
-            )
-            layers.append(layer_districts)
-
-        # 2b. Uploaded Layers (Merged & Colored by Overlap)
-        if active_uploaded_layers:
-            # Prepare list of layers for the cached function
-            layers_to_process = []
-            for name in active_uploaded_layers:
-                layer = st.session_state['kml_layers'].get(name)
-                if layer is not None:
-                    layers_to_process.append(layer)
-
-            if layers_to_process:
-                # Call cached function
-                with st.spinner("Processing overlaps..."):
-                    gdf_merged = process_path_overlaps(layers_to_process, active_uploaded_layers)
-            
-                if gdf_merged is not None and not gdf_merged.empty:
-                    layer_uploaded = pdk.Layer(
-                        "GeoJsonLayer",
-                        gdf_merged,
-                        id="layer-uploaded-merged",
-                        opacity=1.0,
-                        stroked=True,
-                        filled=False, 
-                        get_line_color="color", # Data-driven color from process_path_overlaps
-                        get_line_width=30,
-                        lineWidthMinPixels=2,
-                        pickable=False,
-                    )
-                    layers.append(layer_uploaded)
-
-        if show_winner and gdf_districts is not None and 'Winner' in gdf_districts.columns:
-            # 3. Winner Layer
-            # Define Color Function logic for Pydeck
-            def get_winner_color(row):
-                winner = row.get('Winner', '')
-                pct = row.get('Winner_Pct', 0)
-                
-                # Determine Alpha based on Percentage
-                try:
-                    pct_val = float(pct)
-                except (ValueError, TypeError):
-                    pct_val = 0
-
-                if pct_val > 45:
-                    alpha = 200 # High intensity
-                elif pct_val >= 30:
-                    alpha = 120 # Medium intensity
-                else:
-                    alpha = 60  # Low intensity
-
-                if winner == 'ภูมิใจไทย':
-                    return [0, 0, 255, alpha] 
-                elif winner == 'ก้าวไกล':
-                    return [255, 165, 0, alpha]
-                elif winner == 'เพื่อไทย':
-                    return [255, 0, 0, alpha]
-                else:
-                    return [200, 200, 200, 50]
-            
-            gdf_districts['winner_color'] = gdf_districts.apply(get_winner_color, axis=1)
-
-            layer_winner = pdk.Layer(
-                "GeoJsonLayer",
-                gdf_districts,
-                id="layer_winner",
-                opacity=1.0,
-                stroked=True,
-                filled=True,
-                get_fill_color="winner_color",
-                get_line_color=[255, 255, 255, 100],
-                get_line_width=10,
-                pickable=True,
-                auto_highlight=True,
-                highlight_color=[0, 255, 255, 100],
-            )
-            layers.append(layer_winner)
-
-        if show_points and not df_election.empty:
-            # Scatterplot Layer (Using Aggregated Data)
-            layer_points = pdk.Layer(
-                "ScatterplotLayer",
-                df_map_points, # <--- Use aggregated DF
-                id="layer_points",
-                get_position=['longitude', 'latitude'],
-                get_color=[255, 65, 54, 200], # Redish
-                get_radius=100,
-                pickable=True,
-                auto_highlight=True,
-            )
-            layers.append(layer_points)
-            
-        if show_campaign_pins and gdf_campaign_pins is not None:
-             # Campaign Pins Layer - Square Shape (using ColumnLayer with 4 sides)
-             import math
-             layer_campaign = pdk.Layer(
-                "ColumnLayer",
-                gdf_campaign_pins,
-                id="layer_campaign_pins",
-                get_position=['geometry.coordinates[0]', 'geometry.coordinates[1]'],
-                get_fill_color=[128, 0, 128, 200], # Purple
-                get_line_color=[255, 255, 255, 255],
-                get_line_width=2,
-                radius=100,
-                disk_resolution=4,
-                get_angle=math.pi / 4, # Rotate 45 deg to align as square
-                get_elevation=0,
-                extruded=False,
-                stroked=True,
-                pickable=True,
-                auto_highlight=True,
-            )
-             layers.append(layer_campaign)
-        
-        # Comments Layer (Aggregated for Timeline)
-        if show_comments and st.session_state['comments']:
-            # Aggregate comments by location for Tooltip Timeline
-            df_raw_comments = pd.DataFrame(st.session_state['comments'])
-            
-            # Ensure timestamp exists
-            if 'timestamp' not in df_raw_comments.columns:
-                df_raw_comments['timestamp'] = ''
-            
-            # Group by Lat/Lon to combine comments
-            # create_timeline_html is now imported from utils.html_utils
-            # Use imported function in lambda or directly if signature matches but here we used 'group'
-
-
-            # Grouping
-            if not df_raw_comments.empty:
-                df_comments_agg = df_raw_comments.groupby(['latitude', 'longitude']).apply(
-                    lambda x: pd.Series({
-                        'tooltip_html': create_timeline_html(x),
-                        'count': len(x)
-                    })
-                ).reset_index()
-            else:
-                 df_comments_agg = pd.DataFrame(columns=['latitude', 'longitude', 'tooltip_html'])
-
-            layer_comments = pdk.Layer(
-                "ScatterplotLayer", 
-                df_comments_agg,
-                id="layer_comments",
-                get_position=['longitude', 'latitude'],
-                get_fill_color=[0, 255, 0, 255], # Green
-                get_radius=300, 
-                pickable=True,
-                auto_highlight=True,
-            )
-            layers.append(layer_comments)
         
         # Map State
         # Center map on data
@@ -650,95 +782,42 @@ def _main_app_logic(username):
                             default_lat = selected_data['position'][1]
 
 
-        # --- UI: Tabs for Comment vs Color ---
-        tab_comment, tab_color = st.tabs(["💬 Add Comment", "🎨 Color District"])
+        # --- UI: Comment Section ---
+        st.subheader("💬 Add Comment")
         
-        with tab_comment:
-            if show_comments:
-                # Form to add comment
-                with st.form("comment_form"):
-                    c_col1, c_col2 = st.columns(2)
-                    with c_col1:
-                         c_lat = st.number_input("Latitude", value=default_lat, format="%.6f")
-                    with c_col2:
-                         c_lon = st.number_input("Longitude", value=default_lon, format="%.6f")
-                
-                    c_text = st.text_area("Comment Text", value=default_text)
-                    c_submit = st.form_submit_button("Add Comment")
-                
-                    if c_submit:
-                        if c_text:
-                            import datetime
-                            new_comment = {
-                                "latitude": c_lat,
-                                "longitude": c_lon,
-                                "text": c_text,
-                                "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                                "ชื่อหน่วยเลือกตั้ง": "Comment: " + c_text[:20] # For tooltip compat
-                            }
-                            # Save to session
-                            st.session_state['comments'].append(new_comment)
-                            # Save to file
-                            save_comment(new_comment)
-                        
-                            st.success("Comment added and saved to file!")
-                            st.rerun()
-                        else:
-                            st.warning("Please enter some text.")
-            else:
-                 st.info("Enable 'Comments' layer in sidebar to add comments.")
-        
-        with tab_color:
-             # Check if we have a valid sub-district selected
-             # We try to extract it from default_text or selected_data logic
-             # Re-extract sub_name if possible for clarity
-             valid_subdistrict = False
-             current_sub_name = ""
-             
-             # Heuristic: Check if default_text startswith "Comment for District:"
-             if default_text.startswith("Comment for District: "):
-                 current_sub_name = default_text.replace("Comment for District: ", "").strip()
-                 valid_subdistrict = True
-             
-             if valid_subdistrict:
-                 st.markdown(f"**Target District:** `{current_sub_name}`")
-                 
-                 # Get current color
-                 current_color = subdistrict_colors.get(current_sub_name, 'None')
-                 
-                 color_options = {
-                     'None': 'Default (None)',
-                     'orange': 'Orange (Som)',
-                     'green': 'Low-Green',
-                     'yellow': 'Low-Yellow',
-                     'blue': 'Low-Blue'
-                 }
-                 
-                 # Find index
-                 options_keys = list(color_options.keys())
-                 try:
-                     default_ix = options_keys.index(current_color)
-                 except:
-                     default_ix = 0
-                     
-                 selected_color_key = st.selectbox(
-                     "Assign Color", 
-                     options=options_keys,
-                     format_func=lambda x: color_options[x],
-                     index=default_ix
-                 )
-                 
-                 if st.button("Save Color Assignment"):
-                     if selected_color_key == 'None':
-                          pass
-                     
-                     save_subdistrict_color(current_sub_name, selected_color_key)
-                     st.success(f"Assigned {selected_color_key} to {current_sub_name}")
-                     time.sleep(1) 
-                     st.rerun()
-                     
-             else:
-                 st.info("Select a District polygon on the map to assign a color.")
+        if show_comments:
+            # Form to add comment
+            with st.form("comment_form"):
+                c_col1, c_col2 = st.columns(2)
+                with c_col1:
+                     c_lat = st.number_input("Latitude", value=default_lat, format="%.6f")
+                with c_col2:
+                     c_lon = st.number_input("Longitude", value=default_lon, format="%.6f")
+            
+                c_text = st.text_area("Comment Text", value=default_text)
+                c_submit = st.form_submit_button("Add Comment")
+            
+                if c_submit:
+                    if c_text:
+                        import datetime
+                        new_comment = {
+                            "latitude": c_lat,
+                            "longitude": c_lon,
+                            "text": c_text,
+                            "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                            "ชื่อหน่วยเลือกตั้ง": "Comment: " + c_text[:20] # For tooltip compat
+                        }
+                        # Save to session
+                        st.session_state['comments'].append(new_comment)
+                        # Save to file
+                        save_comment(new_comment)
+                    
+                        st.success("Comment added and saved to file!")
+                        st.rerun()
+                    else:
+                        st.warning("Please enter some text.")
+        else:
+             st.info("Enable 'Comments' layer in sidebar to add comments.")
 
         # --- Manage Comments at this Location ---
         if show_comments and st.session_state['comments']:
