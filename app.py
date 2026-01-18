@@ -44,7 +44,7 @@ def setup_auth():
 def create_map_layers(
     gdf_districts, subdistrict_colors,
     show_districts, show_winner, show_points, show_campaign_pins, show_comments,
-    show_color_orange, show_color_green, show_color_yellow, show_color_blue,
+    show_color_orange, show_color_green, show_color_brown, show_color_blue,
     active_uploaded_layers, kml_layers,
     df_map_points, gdf_campaign_pins, df_comments_agg
 ):
@@ -77,8 +77,8 @@ def create_map_layers(
                  return [255, 165, 0, base_alpha]
              elif assigned_color == 'green' and show_color_green:
                  return [144, 238, 144, base_alpha]
-             elif assigned_color == 'yellow' and show_color_yellow:
-                 return [255, 255, 224, base_alpha]
+             elif assigned_color == 'brown' and show_color_brown:
+                 return [210, 180, 140, base_alpha]
              elif assigned_color == 'blue' and show_color_blue:
                  return [173, 216, 230, base_alpha]
              
@@ -364,10 +364,10 @@ def _main_app_logic(username):
     show_comments = st.sidebar.checkbox("แสดงข้อความ", value=True)
 
     st.sidebar.markdown("**Color Highlights:**")
-    show_color_orange = st.sidebar.checkbox("Fill Orange (Som)", value=True)
-    show_color_green = st.sidebar.checkbox("Fill Low-Green", value=True)
-    show_color_yellow = st.sidebar.checkbox("Fill Low-Yellow", value=True)
-    show_color_blue = st.sidebar.checkbox("Fill Low-Blue", value=True)
+    show_color_orange = st.sidebar.checkbox("เทสีส้ม", value=True)
+    show_color_green = st.sidebar.checkbox("เทสีเขียว", value=True)
+    show_color_brown = st.sidebar.checkbox("เทสีน้ำตาล", value=True)
+    show_color_blue = st.sidebar.checkbox("เทสีฟ้า", value=True)
     
     # Dynamic Controls for Uploaded Layers
     active_uploaded_layers = []
@@ -461,11 +461,24 @@ def _main_app_logic(username):
                 })
              ).reset_index()
     
-    # Create Tabs
-    tab_overview, tab_analysis, tab_color_assign, tab_comment_assign = st.tabs(["Overview", "Analysis Details", "Color Assign", "Comment Assign"])
+    # --- Main Navigation (Radio as Tabs for State Persistence) ---
+    if 'active_tab' not in st.session_state:
+        st.session_state['active_tab'] = "Overview"
 
-    # --- TAB: LAYER SETTINGS (Must run before Overview to set variables) ---
-    with tab_color_assign:
+    st.session_state['active_tab'] = st.radio(
+        "Navigation", 
+        options=["Overview", "Analysis Details", "Color Assign", "Comment Assign"], 
+        horizontal=True,
+        label_visibility="collapsed",
+        key="nav_radio",
+        index=["Overview", "Analysis Details", "Color Assign", "Comment Assign"].index(st.session_state['active_tab'])
+    )
+
+    # Note: We use st.session_state['active_tab'] to control visibility
+    # This ensures only the active component runs, improving performance and state stability.
+
+    # --- TAB: LAYER SETTINGS (Color Assign) ---
+    if st.session_state['active_tab'] == "Color Assign":
         st.header("Color Management")
         
         col_map, col_form = st.columns([2, 1])
@@ -480,8 +493,8 @@ def _main_app_logic(username):
             # Note: We use the *current* visibility settings from this tab + sidebar defaults
             layers_settings = create_map_layers(
                 gdf_districts, subdistrict_colors,
-                show_districts, show_winner, False, False, False, # Hide points/comments in settings map for clarity? Or keep them? User said "map for select". Clarity is better.
-                show_color_orange, show_color_green, show_color_yellow, show_color_blue,
+                show_districts, show_winner, False, False, False, # Hide points/comments in settings map for clarity
+                show_color_orange, show_color_green, show_color_brown, show_color_blue,
                 [], st.session_state['kml_layers'], # No uploaded layers in settings map to avoid clutter
                 None, None, None 
             )
@@ -538,10 +551,10 @@ def _main_app_logic(username):
                  
                  color_options = {
                      'None': 'Default (None)',
-                     'orange': 'Orange (Som)',
-                     'green': 'Low-Green',
-                     'yellow': 'Low-Yellow',
-                     'blue': 'Low-Blue'
+                     'orange': 'สีส้ม',
+                     'green': 'สีเขียว',
+                     'brown': 'สีน้ำตาล',
+                     'blue': 'สีฟ้า'
                  }
                  
                  # Find index
@@ -570,7 +583,8 @@ def _main_app_logic(username):
             else:
                  st.info("Select a District polygon on the map to assign a color.")
 
-    with tab_comment_assign:
+    # --- TAB: COMMENT ASSIGN ---
+    if st.session_state['active_tab'] == "Comment Assign":
         st.header("Comment Assignment")
         st.caption("Select a district or point on the map to add a comment.")
         
@@ -586,7 +600,7 @@ def _main_app_logic(username):
                 False, # show_campaign_pins
                 True,  # show_comments (Always show in this tab?) Let's respect sidebar or force true?
                        # User might want to toggle. Let's respect sidebar 'show_comments'.
-                show_color_orange, show_color_green, show_color_yellow, show_color_blue,
+                show_color_orange, show_color_green, show_color_brown, show_color_blue,
                 [], {}, 
                 None, None, df_comments_agg
             )
@@ -691,7 +705,9 @@ def _main_app_logic(username):
                             if comment in st.session_state['comments']:
                                 st.session_state['comments'].remove(comment)
                             st.rerun()
-    with tab_overview:
+
+    # --- TAB: OVERVIEW ---
+    if st.session_state['active_tab'] == "Overview":
         selected_units = []
         filtered_locations = None
         
@@ -757,7 +773,7 @@ def _main_app_logic(username):
         layers = create_map_layers(
             gdf_districts, subdistrict_colors,
             show_districts, show_winner, show_points, show_campaign_pins, show_comments,
-            show_color_orange, show_color_green, show_color_yellow, show_color_blue,
+            show_color_orange, show_color_green, show_color_brown, show_color_blue,
             active_uploaded_layers, st.session_state['kml_layers'],
             df_map_points_filtered, gdf_campaign_pins, df_comments_agg
         )
@@ -848,7 +864,8 @@ def _main_app_logic(username):
 
 
 
-    with tab_analysis:
+    # --- TAB: ANALYSIS DETAILS ---
+    if st.session_state['active_tab'] == "Analysis Details":
         st.header("Analysis Details: Aggregated by Sub-district (ตำบล)")
         
         if not df_election.empty:

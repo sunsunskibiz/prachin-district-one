@@ -8,3 +8,4 @@ lxml>=5.0.0
 shapely>=2.0.0
 fiona>=1.9.5
 google-cloud-storage>=2.0.0
+PyYAML
