@@ -174,7 +174,7 @@ def create_map_layers(
             df_map_points,
             id="layer_points",
             get_position=['longitude', 'latitude'],
-            get_color=[255, 65, 54, 200],
+            get_color="point_color" if "point_color" in df_map_points.columns else [255, 65, 54, 200],
             get_radius=100,
             pickable=True,
             auto_highlight=True,
@@ -360,8 +360,9 @@ def _main_app_logic(username):
     show_points = st.sidebar.checkbox("หน่วยเลือกตั้ง", value=True)
     show_campaign_pins = st.sidebar.checkbox("จุดติดป้าย", value=False)
 
-    st.sidebar.markdown("**Comment:**")
-    show_comments = st.sidebar.checkbox("แสดงข้อความ", value=True)
+    st.sidebar.markdown("**Comment Layers:**")
+    show_comments = st.sidebar.checkbox("General Comments", value=True)
+    show_point_comments = st.sidebar.checkbox("Point Contact Info", value=True)
 
     st.sidebar.markdown("**Color Highlights:**")
     show_color_orange = st.sidebar.checkbox("เทสีส้ม", value=True)
@@ -467,11 +468,11 @@ def _main_app_logic(username):
 
     st.session_state['active_tab'] = st.radio(
         "Navigation", 
-        options=["Overview", "Analysis Details", "Color Assign", "Comment Assign"], 
+        options=["Overview", "Analysis Details", "Color Assign", "Comment Assign", "Point Comment"], 
         horizontal=True,
         label_visibility="collapsed",
         key="nav_radio",
-        index=["Overview", "Analysis Details", "Color Assign", "Comment Assign"].index(st.session_state['active_tab'])
+        index=["Overview", "Analysis Details", "Color Assign", "Comment Assign", "Point Comment"].index(st.session_state['active_tab'])
     )
 
     # Note: We use st.session_state['active_tab'] to control visibility
@@ -514,6 +515,43 @@ def _main_app_logic(username):
                 selection_mode="single-object",
                 height=600
             )
+
+            # --- Color Coverage Metrics ---
+            st.divider()
+            st.subheader("Color Coverage (Total: 26 Districts)")
+            
+            # Count colors
+            counts = {
+                'orange': 0,
+                'green': 0,
+                'brown': 0,
+                'blue': 0
+            }
+            
+            for color in subdistrict_colors.values():
+                if color in counts:
+                    counts[color] += 1
+            
+            # Calculate Percentages (Fixed denominator of 26)
+            total_districts = 26
+            
+            m1, m2, m3, m4 = st.columns(4)
+            
+            with m1:
+                pct = (counts['orange'] / total_districts) * 100
+                st.metric("สีส้ม (Orange)", f"{counts['orange']} ({pct:.1f}%)")
+                
+            with m2:
+                pct = (counts['green'] / total_districts) * 100
+                st.metric("สีเขียว (Green)", f"{counts['green']} ({pct:.1f}%)")
+                
+            with m3:
+                pct = (counts['brown'] / total_districts) * 100
+                st.metric("สีน้ำตาล (Brown)", f"{counts['brown']} ({pct:.1f}%)")
+                
+            with m4:
+                pct = (counts['blue'] / total_districts) * 100
+                st.metric("สีฟ้า (Blue)", f"{counts['blue']} ({pct:.1f}%)")
 
         with col_form:
             # Check if selection exists in session state (settings_map)
@@ -706,6 +744,172 @@ def _main_app_logic(username):
                                 st.session_state['comments'].remove(comment)
                             st.rerun()
 
+    # --- TAB: POINT COMMENT (Election Points) ---
+    if st.session_state['active_tab'] == "Point Comment":
+        st.header("Point Comment (Election Units)")
+        st.caption("Select an Election Point (Red Dot) to add a contact comment.")
+        
+        col_map_p, col_form_p = st.columns([2, 1])
+        
+        with col_map_p:
+            # Prepare DataFrame with custom tooltips for this tab
+            df_points_display = df_map_points.copy()
+            
+            # Convert session comments to DF
+            current_comments = pd.DataFrame(st.session_state.get('comments', []))
+            
+            # Update tooltip column AND Color
+            from utils.html_utils import get_point_comment_tooltip
+            if not df_points_display.empty:
+                 # Helper to check if unit has comment
+                 units_with_comments = set()
+                 if not current_comments.empty and 'target_unit' in current_comments.columns:
+                     units_with_comments = set(current_comments['target_unit'].unique())
+                 
+                 def set_props(row):
+                     # Tooltip
+                     tt = get_point_comment_tooltip(row, current_comments, df_election)
+                     # Color
+                     # We need to check if ANY unit at this location has a comment
+                     lat = row['latitude']
+                     lon = row['longitude']
+                     
+                     color = [255, 65, 54, 200] # Default Red
+                     
+                     if not df_election.empty:
+                        matches = df_election[
+                            (df_election['latitude'] == lat) & 
+                            (df_election['longitude'] == lon)
+                        ]
+                        if not matches.empty:
+                            units_at_loc = matches['ชื่อหน่วยเลือกตั้ง'].unique().tolist()
+                            # If any unit at this location is in units_with_comments
+                            if any(u in units_with_comments for u in units_at_loc):
+                                color = [0, 255, 0, 200] # Green
+                     
+                     return pd.Series([tt, color], index=['tooltip_html', 'point_color'])
+
+                 df_points_display[['tooltip_html', 'point_color']] = df_points_display.apply(set_props, axis=1)
+
+            # Show ONLY Points (and districts for context, but no winner colors)
+            layers_point = create_map_layers(
+                gdf_districts, subdistrict_colors,
+                True, # show_districts
+                False, # show_winner
+                True, # show_points (Critical!)
+                False, # show_campaign_pins
+                False, # show_comments (Hide generic comments to focus on points?)
+                False, False, False, False, # No colors
+                [], {}, 
+                df_points_display, # Pass map points with updated tooltips
+                None, None # No point comments aggregation here yet or pass generic if needed
+            )
+            
+            view_state_point = pdk.ViewState(latitude=14.0, longitude=101.5, zoom=10)
+            
+            st.pydeck_chart(
+                pdk.Deck(
+                    layers=layers_point,
+                    initial_view_state=view_state_point,
+                    map_style="mapbox://styles/mapbox/light-v9",
+                    tooltip={"html": "{tooltip_html}", "style": {"color": "white"}}
+                ),
+                key="point_comment_map",
+                on_select="rerun",
+                selection_mode="single-object",
+                height=600
+            )
+            
+        with col_form_p:
+            # --- Handle Selection ---
+            sel_lat = 0.0
+            sel_lon = 0.0
+            sel_units = []
+            
+            selection_state_p = st.session_state.get("point_comment_map", {})
+            if selection_state_p and "selection" in selection_state_p:
+                selection = selection_state_p["selection"]
+                if selection and "objects" in selection and selection["objects"]:
+                    obj = selection["objects"].values()
+                    for obj_list in obj:
+                        if obj_list:
+                            data = obj_list[0]
+                            # Check if it's a point (has lat/lon direct or from properties)
+                            if 'latitude' in data and 'longitude' in data:
+                                sel_lat = data['latitude']
+                                sel_lon = data['longitude']
+                                
+                                # Find units at this location
+                                # use df_election to lookup
+                                if not df_election.empty:
+                                    matches = df_election[
+                                        (df_election['latitude'] == sel_lat) & 
+                                        (df_election['longitude'] == sel_lon)
+                                    ]
+                                    if not matches.empty:
+                                        sel_units = matches['ชื่อหน่วยเลือกตั้ง'].unique().tolist()
+            
+            if sel_units:
+                st.subheader("Add Contact Info")
+                with st.form("point_comment_form"):
+                    target_unit = st.selectbox("Select Unit", options=sel_units)
+                    
+                    st.divider()
+                    c_name = st.text_input("Name (ชื่อผู้ติดต่อ)")
+                    c_line = st.text_input("Line ID")
+                    c_tel = st.text_input("Tel No (เบอร์โทร)")
+                    c_note = st.text_area("Note / Comment")
+                    
+                    submit_p = st.form_submit_button("Save Contact Info")
+                    
+                    if submit_p:
+                        if c_name or c_note: # Require at least name or note
+                            import datetime
+                            new_p_comment = {
+                                "latitude": sel_lat,
+                                "longitude": sel_lon,
+                                "text": c_note,
+                                "contact_name": c_name,
+                                "contact_line": c_line,
+                                "contact_tel": c_tel,
+                                "target_unit": target_unit,
+                                "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                                "ชื่อหน่วยเลือกตั้ง": f"Contact: {c_name} ({target_unit})"       
+                            }
+                            st.session_state['comments'].append(new_p_comment)
+                            save_comment(new_p_comment)
+                            st.success(f"Saved for {target_unit}!")
+                            st.rerun()
+                        else:
+                            st.error("Please enter Name or Note.")
+                            
+                # Show existing comments for this location
+                # Filter by slight tolerance
+                loc_comments = [
+                    c for c in st.session_state.get('comments', [])
+                    if abs(c.get('latitude', 0) - sel_lat) < 0.0001 and abs(c.get('longitude', 0) - sel_lon) < 0.0001
+                ]
+                
+                if loc_comments:
+                    st.write("---")
+                    st.write("**Existing Records:**")
+                    from utils.data_utils import delete_comment
+                    for i, c in enumerate(loc_comments):
+                         with st.expander(f"{c.get('contact_name', 'Unknown')} - {c.get('timestamp')}"):
+                             st.write(f"**Unit:** {c.get('target_unit', '-')}")
+                             st.write(f"**Tel:** {c.get('contact_tel', '-')}")
+                             st.write(f"**Line:** {c.get('contact_line', '-')}")
+                             st.write(f"**Note:** {c.get('text', '-')}")
+                             
+                             if st.button("Delete", key=f"del_p_{i}"):
+                                 delete_comment(c)
+                                 if c in st.session_state['comments']:
+                                     st.session_state['comments'].remove(c)
+                                 st.rerun()
+
+            else:
+                st.info("👈 Please click on a Red Point (Election Unit) on the map.")
+
     # --- TAB: OVERVIEW ---
     if st.session_state['active_tab'] == "Overview":
         selected_units = []
@@ -770,12 +974,51 @@ def _main_app_logic(username):
                 filtered_locations, on=['latitude', 'longitude'], how='inner'
              )
 
+        # Filter Comments based on Sidebar
+        df_comments_final = pd.DataFrame()
+        if df_comments_agg is not None and not df_comments_agg.empty:
+            # We need to filter the SOURCE comments first then re-aggregate? 
+            # Or filter the aggregated ones? DF_comments_agg is aggregated by location.
+            # But we don't have 'target_unit' in agg? 
+            # We need to re-aggregate if we filter! 
+            # Re-doing aggregation here is safer.
+            
+            raw_comments = pd.DataFrame(st.session_state.get('comments', []))
+            if not raw_comments.empty:
+                # 1. Identify types
+                # Point Contacts have 'target_unit'. General ones might not?
+                if 'target_unit' not in raw_comments.columns:
+                    raw_comments['target_unit'] = None
+                
+                # Filter
+                mask_general = raw_comments['target_unit'].isna() | (raw_comments['target_unit'] == '')
+                mask_point = ~mask_general
+                
+                parts = []
+                if show_comments:
+                    parts.append(raw_comments[mask_general])
+                if show_point_comments:
+                    parts.append(raw_comments[mask_point])
+                
+                if parts:
+                    df_filtered_source = pd.concat(parts)
+                    if not df_filtered_source.empty:
+                        # Re-aggregate
+                        # from utils.html_utils import create_timeline_html (Removed to avoid shadowing)
+                        df_comments_final = df_filtered_source.groupby(['latitude', 'longitude']).apply(
+                            lambda x: pd.Series({
+                                'tooltip_html': create_timeline_html(x),
+                                'count': len(x)
+                            })
+                        ).reset_index()
+
         layers = create_map_layers(
             gdf_districts, subdistrict_colors,
-            show_districts, show_winner, show_points, show_campaign_pins, show_comments,
+            show_districts, show_winner, show_points, show_campaign_pins, 
+            True, # Always True for comments layer, as we control it via df_comments_final being empty or not
             show_color_orange, show_color_green, show_color_brown, show_color_blue,
             active_uploaded_layers, st.session_state['kml_layers'],
-            df_map_points_filtered, gdf_campaign_pins, df_comments_agg
+            df_map_points_filtered, gdf_campaign_pins, df_comments_final
         )
         
         # Map State

@@ -169,3 +169,75 @@ def create_timeline_html(group):
     
     html += "</div>"
     return html
+
+def get_point_comment_tooltip(row, comments_df, df_election=None):
+    """
+    Generates tooltip HTML for the Point Comment tab.
+    Shows Election Unit name and any contact info/comments associated with it.
+    Uses lat/lon to find all units at this location.
+    """
+    lat = row.get('latitude')
+    lon = row.get('longitude')
+    
+    # metrics
+    unit_names = []
+    
+    if df_election is not None and not df_election.empty:
+         # Find all units at this location
+         matches = df_election[
+             (df_election['latitude'] == lat) & 
+             (df_election['longitude'] == lon)
+         ]
+         if not matches.empty:
+             unit_names = matches['ชื่อหน่วยเลือกตั้ง'].unique().tolist()
+    
+    if not unit_names:
+        # Fallback if no df_election passed or no match (shouldn't happen if row comes from df_election)
+        val = row.get('ชื่อหน่วยเลือกตั้ง', 'Unknown Unit')
+        unit_names = [val]
+
+    # Header
+    header_html = ""
+    for name in unit_names:
+        header_html += f"<div style='font-weight: bold; font-size: 13px; margin-bottom: 2px; color: #ff4b4b;'>{name}</div>"
+    
+    header = f"<div style='margin-bottom: 5px;'>{header_html}</div>"
+    
+    # Check for comments
+    has_comments = False
+    comments_html = ""
+    
+    if comments_df is not None and not comments_df.empty:
+        # Filter comments for ANY of these units
+        # WE match by 'target_unit' name
+        
+        unit_comments = comments_df[comments_df['target_unit'].isin(unit_names)]
+        
+        if not unit_comments.empty:
+            has_comments = True
+            comments_html += "<div style='margin-top: 5px; border-top: 1px solid #eee; padding-top: 5px;'>"
+            comments_html += "<div style='font-size: 12px; color: #aaa; margin-bottom: 3px;'>Contacts:</div>"
+            
+            for _, c_row in unit_comments.iterrows():
+                name = c_row.get('contact_name', '-')
+                tel = c_row.get('contact_tel', '-')
+                line = c_row.get('contact_line', '-')
+                note = c_row.get('text', '')
+                unit = c_row.get('target_unit', '')
+                
+                # If multiple units, show which one this comment belongs to
+                unit_badge = f"<div style='font-size:9px; color:#aaa;'>For: {unit}</div>" if len(unit_names) > 1 else ""
+
+                comments_html += f"""
+                <div style='background: rgba(255, 255, 255, 0.1); padding: 4px; border-radius: 4px; margin-bottom: 4px; font-size: 11px;'>
+                    {unit_badge}
+                    <b>{name}</b> <span style='color: #888;'>(Tel: {tel}, Line: {line})</span><br/>
+                    <i style='color: #ddd;'>{note}</i>
+                </div>
+                """
+            comments_html += "</div>"
+            
+    if not has_comments:
+        comments_html = "<div style='font-size: 11px; color: #888; margin-top: 5px;'><i>Click to add contact info</i></div>"
+        
+    return f"<div style='min-width: 250px;'>{header}{comments_html}</div>"

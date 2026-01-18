@@ -41,21 +41,29 @@ def load_comments() -> list:
 def save_comment(comment: dict):
     """Saves a single comment to CSV file (Local + GCS Sync)."""
     try:
-        # Load current state to append correctly (or just append to local and re-read)
-        # Better: Append to local file
+        # Load current state to append correctly (safer for schema changes)
         df_new = pd.DataFrame([comment])
+        
         if os.path.exists(COMMENTS_FILE):
-            df_new.to_csv(COMMENTS_FILE, mode='a', header=False, index=False)
+            try:
+                df_existing = pd.read_csv(COMMENTS_FILE)
+                # Concatenate to handle new columns automatically (fills missing with NaN)
+                df_combined = pd.concat([df_existing, df_new], ignore_index=True)
+            except Exception as e:
+                # If read fails (e.g. empty file), just use new
+                 df_combined = df_new
         else:
-            df_new.to_csv(COMMENTS_FILE, mode='w', header=True, index=False)
+            df_combined = df_new
+            
+        # Save Local
+        df_combined.to_csv(COMMENTS_FILE, index=False)
             
         # Sync to GCS: Read full file and upload
-        if os.path.exists(COMMENTS_FILE):
-            with open(COMMENTS_FILE, 'r') as f:
-                full_csv_content = f.read()
-            
-            from .gcs_utils import upload_text_to_gcs
-            upload_text_to_gcs(full_csv_content, GCS_BUCKET_NAME, f"shared/{COMMENTS_FILE}")
+        with open(COMMENTS_FILE, 'r') as f:
+            full_csv_content = f.read()
+        
+        from .gcs_utils import upload_text_to_gcs
+        upload_text_to_gcs(full_csv_content, GCS_BUCKET_NAME, f"shared/{COMMENTS_FILE}")
             
     except Exception as e:
         st.error(f"Error saving comment: {e}")
