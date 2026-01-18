@@ -413,7 +413,7 @@ def _main_app_logic(username):
                 df_votes_by_district,
                 left_on='sub_district_name', 
                 right_on='ตำบล', 
-                how='left'
+                how='inner'
             )
             # Fill NaN Winner with "Unknown" and 0 for logic processing but keep NaNs for display where appropriate
             if 'Winner' in gdf_districts.columns:
