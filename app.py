@@ -364,7 +364,10 @@ def _main_app_logic(username):
     show_comments = st.sidebar.checkbox("แสดงข้อความ", value=True)
 
     st.sidebar.markdown("**Color Highlights:**")
-    st.sidebar.caption("Go to 'Layer Settings' tab to configure.")
+    show_color_orange = st.sidebar.checkbox("Fill Orange (Som)", value=True)
+    show_color_green = st.sidebar.checkbox("Fill Low-Green", value=True)
+    show_color_yellow = st.sidebar.checkbox("Fill Low-Yellow", value=True)
+    show_color_blue = st.sidebar.checkbox("Fill Low-Blue", value=True)
     
     # Dynamic Controls for Uploaded Layers
     active_uploaded_layers = []
@@ -459,116 +462,235 @@ def _main_app_logic(username):
              ).reset_index()
     
     # Create Tabs
-    tab_overview, tab_analysis, tab_color_assign = st.tabs(["Overview", "Analysis Details", "Color Assign"])
+    tab_overview, tab_analysis, tab_color_assign, tab_comment_assign = st.tabs(["Overview", "Analysis Details", "Color Assign", "Comment Assign"])
 
     # --- TAB: LAYER SETTINGS (Must run before Overview to set variables) ---
     with tab_color_assign:
         st.header("Color Management")
         
-        st.subheader("Layer Visibility")
-        show_color_orange = st.checkbox("Fill Orange (Som)", value=True)
-        show_color_green = st.checkbox("Fill Low-Green", value=True)
-        show_color_yellow = st.checkbox("Fill Low-Yellow", value=True)
-        show_color_blue = st.checkbox("Fill Low-Blue", value=True)
+        col_map, col_form = st.columns([2, 1])
         
-        st.divider()
-        st.subheader("Assign Color to District")
-        
-        # Helper map for selection
-        st.markdown("Select a district on the map below to assign color:")
-        
-        # Build Layers for Settings Map
-        # Note: We use the *current* visibility settings from this tab + sidebar defaults
-        layers_settings = create_map_layers(
-            gdf_districts, subdistrict_colors,
-            show_districts, show_winner, False, False, False, # Hide points/comments in settings map for clarity? Or keep them? User said "map for select". Clarity is better.
-            show_color_orange, show_color_green, show_color_yellow, show_color_blue,
-            [], st.session_state['kml_layers'], # No uploaded layers in settings map to avoid clutter
-            None, None, None 
-        )
-        
-        # View State for Settings Map (can be static or same as main)
-        view_state_settings = pdk.ViewState(latitude=14.0, longitude=101.5, zoom=9)
-        
-        st.pydeck_chart(
-            pdk.Deck(
-                layers=layers_settings,
-                initial_view_state=view_state_settings,
-                map_style="mapbox://styles/mapbox/light-v9",
-                tooltip={"html": "{tooltip_html}", "style": {"color": "white"}}
-            ),
-            key="settings_map",
-            on_select="rerun",
-            selection_mode="single-object",
-        )
-        # Check if selection exists in session state (settings_map)
-        selection_state = st.session_state.get("settings_map", {})
-        
-        # Check main map selection as fallback if user just switched tabs (optional, but good UX)
-        if not selection_state.get("selection"):
-             selection_state = st.session_state.get("main_map", {})
-        
-        # Logic to determine selected district
-        default_sub_name = ""
-        valid_subdistrict = False
-        
-        if selection_state and "selection" in selection_state:
-            selection = selection_state["selection"]
-            if selection and "objects" in selection and selection["objects"]:
-                # Get the last selected object
-                obj = selection["objects"].values()
-                for obj_list in obj:
-                    if obj_list:
-                        selected_data = obj_list[0]
-                        # Try to extract sub_district_name
-                        if 'sub_district_name' in selected_data:
-                            default_sub_name = selected_data['sub_district_name']
-                            valid_subdistrict = True
-                        elif 'properties' in selected_data and 'sub_district_name' in selected_data['properties']:
-                            default_sub_name = selected_data['properties']['sub_district_name']
-                            valid_subdistrict = True
-        
-        if valid_subdistrict:
-             st.markdown(f"**Target District:** `{default_sub_name}`")
-             
-             # Get current color
-             current_color = subdistrict_colors.get(default_sub_name, 'None')
-             
-             color_options = {
-                 'None': 'Default (None)',
-                 'orange': 'Orange (Som)',
-                 'green': 'Low-Green',
-                 'yellow': 'Low-Yellow',
-                 'blue': 'Low-Blue'
-             }
-             
-             # Find index
-             options_keys = list(color_options.keys())
-             try:
-                 default_ix = options_keys.index(current_color)
-             except:
-                 default_ix = 0
-                 
-             selected_color_key = st.selectbox(
-                 "Assign Color", 
-                 options=options_keys,
-                 format_func=lambda x: color_options[x],
-                 index=default_ix
-             )
-             
-             if st.button("Save Color Assignment"):
-                 if selected_color_key == 'None':
-                      pass
-                 
-                 save_subdistrict_color(default_sub_name, selected_color_key)
-                 st.success(f"Assigned {selected_color_key} to {default_sub_name}")
-                 time.sleep(1) 
-                 st.rerun()
-                 
-        else:
-             st.info("Select a District polygon on the map above to assign a color.")
+        with col_map:
+            st.subheader("Assign Color to District")
+            
+            # Helper map for selection
+            st.markdown("Select a district on the map to assign color:")
+            
+            # Build Layers for Settings Map
+            # Note: We use the *current* visibility settings from this tab + sidebar defaults
+            layers_settings = create_map_layers(
+                gdf_districts, subdistrict_colors,
+                show_districts, show_winner, False, False, False, # Hide points/comments in settings map for clarity? Or keep them? User said "map for select". Clarity is better.
+                show_color_orange, show_color_green, show_color_yellow, show_color_blue,
+                [], st.session_state['kml_layers'], # No uploaded layers in settings map to avoid clutter
+                None, None, None 
+            )
+            
+            # View State for Settings Map (can be static or same as main)
+            view_state_settings = pdk.ViewState(latitude=14.0, longitude=101.5, zoom=9)
+            
+            st.pydeck_chart(
+                pdk.Deck(
+                    layers=layers_settings,
+                    initial_view_state=view_state_settings,
+                    map_style="mapbox://styles/mapbox/light-v9",
+                    tooltip={"html": "{tooltip_html}", "style": {"color": "white"}}
+                ),
+                key="settings_map",
+                on_select="rerun",
+                selection_mode="single-object",
+                height=600
+            )
 
-    
+        with col_form:
+            # Check if selection exists in session state (settings_map)
+            selection_state = st.session_state.get("settings_map", {})
+            
+            # Check main map selection as fallback if user just switched tabs (optional, but good UX)
+            if not selection_state.get("selection"):
+                 selection_state = st.session_state.get("main_map", {})
+            
+            # Logic to determine selected district
+            default_sub_name = ""
+            valid_subdistrict = False
+            
+            if selection_state and "selection" in selection_state:
+                selection = selection_state["selection"]
+                if selection and "objects" in selection and selection["objects"]:
+                    # Get the last selected object
+                    obj = selection["objects"].values()
+                    for obj_list in obj:
+                        if obj_list:
+                            selected_data = obj_list[0]
+                            # Try to extract sub_district_name
+                            if 'sub_district_name' in selected_data:
+                                default_sub_name = selected_data['sub_district_name']
+                                valid_subdistrict = True
+                            elif 'properties' in selected_data and 'sub_district_name' in selected_data['properties']:
+                                default_sub_name = selected_data['properties']['sub_district_name']
+                                valid_subdistrict = True
+            
+            if valid_subdistrict:
+                 st.markdown(f"**Target District:** `{default_sub_name}`")
+                 
+                 # Get current color
+                 current_color = subdistrict_colors.get(default_sub_name, 'None')
+                 
+                 color_options = {
+                     'None': 'Default (None)',
+                     'orange': 'Orange (Som)',
+                     'green': 'Low-Green',
+                     'yellow': 'Low-Yellow',
+                     'blue': 'Low-Blue'
+                 }
+                 
+                 # Find index
+                 options_keys = list(color_options.keys())
+                 try:
+                     default_ix = options_keys.index(current_color)
+                 except:
+                     default_ix = 0
+                     
+                 selected_color_key = st.selectbox(
+                     "Assign Color", 
+                     options=options_keys,
+                     format_func=lambda x: color_options[x],
+                     index=default_ix
+                 )
+                 
+                 if st.button("Save Color Assignment"):
+                     if selected_color_key == 'None':
+                          pass
+                     
+                     save_subdistrict_color(default_sub_name, selected_color_key)
+                     st.success(f"Assigned {selected_color_key} to {default_sub_name}")
+                     time.sleep(1) 
+                     st.rerun()
+                     
+            else:
+                 st.info("Select a District polygon on the map to assign a color.")
+
+    with tab_comment_assign:
+        st.header("Comment Assignment")
+        st.caption("Select a district or point on the map to add a comment.")
+        
+        col_map, col_form = st.columns([2, 1])
+        
+        with col_map:
+            # Layers for Comment Map (Districts + Comments)
+            layers_comment = create_map_layers(
+                gdf_districts, subdistrict_colors,
+                True, # show_districts
+                False, # show_winner
+                False, # show_points
+                False, # show_campaign_pins
+                True,  # show_comments (Always show in this tab?) Let's respect sidebar or force true?
+                       # User might want to toggle. Let's respect sidebar 'show_comments'.
+                show_color_orange, show_color_green, show_color_yellow, show_color_blue,
+                [], {}, 
+                None, None, df_comments_agg
+            )
+            
+            view_state_comment = pdk.ViewState(latitude=14.0, longitude=101.5, zoom=9)
+            
+            st.pydeck_chart(
+                pdk.Deck(
+                    layers=layers_comment,
+                    initial_view_state=view_state_comment,
+                    map_style="mapbox://styles/mapbox/light-v9",
+                    tooltip={"html": "{tooltip_html}", "style": {"color": "white"}}
+                ),
+                key="comment_map",
+                on_select="rerun",
+                selection_mode="single-object",
+                height=600
+            )
+
+        with col_form:
+            # --- Handle Map Selection for Comment Tab ---
+            default_lat_c = 14.0
+            default_lon_c = 101.5
+            default_text_c = ""
+            
+            selection_state_c = st.session_state.get("comment_map", {})
+            if selection_state_c and "selection" in selection_state_c:
+                selection = selection_state_c["selection"]
+                if selection and "objects" in selection and selection["objects"]:
+                    obj = selection["objects"].values()
+                    for obj_list in obj:
+                        if obj_list:
+                            selected_data = obj_list[0]
+                            # Case 1: Point
+                            if 'latitude' in selected_data and 'longitude' in selected_data:
+                                default_lat_c = selected_data['latitude']
+                                default_lon_c = selected_data['longitude']
+                                name_val = selected_data.get('ชื่อหน่วยเลือกตั้ง', '') or selected_data.get('name', 'Point')
+                                default_text_c = f"Comment for: {name_val}"
+                            # Case 2: Geometry (Polygon)
+                            elif 'geometry' in selected_data:
+                                geom = selected_data['geometry']
+                                if geom['type'] == 'Polygon':
+                                    coords = geom['coordinates'][0]
+                                    avg_lon_c = sum(p[0] for p in coords) / len(coords)
+                                    avg_lat_c = sum(p[1] for p in coords) / len(coords)
+                                    default_lat_c = avg_lat_c
+                                    default_lon_c = avg_lon_c
+                                    sub_name = selected_data.get('sub_district_name', '') or selected_data.get('properties', {}).get('sub_district_name', 'District')
+                                    default_text_c = f"Comment for District: {sub_name}"
+                                elif geom['type'] == 'MultiPolygon':
+                                    coords = geom['coordinates'][0][0]
+                                    avg_lon_c = sum(p[0] for p in coords) / len(coords)
+                                    avg_lat_c = sum(p[1] for p in coords) / len(coords)
+                                    default_lat_c = avg_lat_c
+                                    default_lon_c = avg_lon_c
+                                    sub_name = selected_data.get('sub_district_name', '') or selected_data.get('properties', {}).get('sub_district_name', 'District')
+                                    default_text_c = f"Comment for District: {sub_name}"
+
+            st.subheader("Add Comment")
+            with st.form("comment_form_tab"):
+                c_lat = st.number_input("Latitude", value=default_lat_c, format="%.6f")
+                c_lon = st.number_input("Longitude", value=default_lon_c, format="%.6f")
+                c_text = st.text_area("Comment Value", value=default_text_c)
+                c_submit = st.form_submit_button("Save Comment")
+                
+                if c_submit:
+                    if c_text:
+                        import datetime
+                        new_comment = {
+                            "latitude": c_lat,
+                            "longitude": c_lon,
+                            "text": c_text,
+                            "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                            "ชื่อหน่วยเลือกตั้ง": "Comment: " + c_text[:20]
+                        }
+                        st.session_state['comments'].append(new_comment)
+                        save_comment(new_comment)
+                        st.success("Saved!")
+                        st.rerun()
+                    else:
+                        st.warning("Enter text.")
+
+            # Manage Comments at Location
+            # Filter comments for the currently selected location (approx match)
+            current_loc_comments = [
+                c for c in st.session_state.get('comments', [])
+                if abs(c['latitude'] - default_lat_c) < 0.0001 and abs(c['longitude'] - default_lon_c) < 0.0001
+            ]
+            
+            if current_loc_comments:
+                st.divider()
+                st.markdown("**Manage Comments Here:**")
+                from utils.data_utils import delete_comment
+                for i, comment in enumerate(current_loc_comments):
+                    col_txt, col_del = st.columns([0.8, 0.2])
+                    with col_txt:
+                        st.caption(f"{comment.get('timestamp','')}: {comment.get('text','')}")
+                    with col_del:
+                        if st.button("Del", key=f"del_tab_{i}_{comment.get('timestamp')}"):
+                            delete_comment(comment)
+                            if comment in st.session_state['comments']:
+                                st.session_state['comments'].remove(comment)
+                            st.rerun()
     with tab_overview:
         selected_units = []
         filtered_locations = None
@@ -686,7 +808,8 @@ def _main_app_logic(username):
         )
     
         # st.pydeck_chart(r, key="main_map") # Old
-        st.pydeck_chart(r, key="main_map", on_select="rerun", selection_mode="single-object", height=700)
+        # st.pydeck_chart(r, key="main_map") # Old
+        st.pydeck_chart(r, key="main_map", height=700)
 
         # Google Maps Links for Selected Points
         # Use filtered list if search is active, otherwise use full list (limited to 20)
@@ -721,142 +844,9 @@ def _main_app_logic(username):
     
         # Comments / Annotation Section
 
-        # --- Map Interaction Section (Always Visible) ---
-        st.markdown("---")
-        st.header("Map Interaction")
-        st.caption("Select a point or district on the map to interact.")
-
-        # --- Handle Map Selection ---
-        default_lat = initial_view_state.latitude
-        default_lon = initial_view_state.longitude
-        default_text = ""
-        
-        # Check if selection exists in session state
-        selection_state = st.session_state.get("main_map", {})
-        if selection_state and "selection" in selection_state:
-            selection = selection_state["selection"]
-            if selection and "objects" in selection and selection["objects"]:
-                # Get the last selected object
-                obj = selection["objects"].values()
-                # The format is {layer_id: [object_list]}
-                for obj_list in obj:
-                    if obj_list:
-                        selected_data = obj_list[0]
-                        # Try to extract coordinates
-                        # Case 1: Point (Scatterplot) - usually has 'latitude', 'longitude' or 'position'
-                        if 'latitude' in selected_data and 'longitude' in selected_data:
-                            default_lat = selected_data['latitude']
-                            default_lon = selected_data['longitude']
-                            name_val = selected_data.get('ชื่อหน่วยเลือกตั้ง', '') or selected_data.get('name', 'Point')
-                            default_text = f"Comment for: {name_val}"
-                            
-                        # Case 2: Polygon (GeoJson) - needs centroid calculation
-                        elif 'geometry' in selected_data:
-                            # Simple centroid approximation for display
-                            # This depends on how Pydeck returns the geometry. 
-                            # Usually it returns the GeoJSON geometry object.
-                            geom = selected_data['geometry']
-                            if geom['type'] == 'Polygon':
-                                # Average of coordinates
-                                coords = geom['coordinates'][0]
-                                avg_lon = sum(p[0] for p in coords) / len(coords)
-                                avg_lat = sum(p[1] for p in coords) / len(coords)
-                                default_lat = avg_lat
-                                default_lon = avg_lon
-                                
-                                sub_name = selected_data.get('sub_district_name', '') or selected_data.get('properties', {}).get('sub_district_name', 'District')
-                                default_text = f"Comment for District: {sub_name}"
-                            elif geom['type'] == 'MultiPolygon':
-                                # Take first polygon for simplicity
-                                coords = geom['coordinates'][0][0]
-                                avg_lon = sum(p[0] for p in coords) / len(coords)
-                                avg_lat = sum(p[1] for p in coords) / len(coords)
-                                default_lat = avg_lat
-                                default_lon = avg_lon
-                                sub_name = selected_data.get('sub_district_name', '') or selected_data.get('properties', {}).get('sub_district_name', 'District')
-                                default_text = f"Comment for District: {sub_name}"
-                        
-                        # Case 3: Position array [lon, lat] (common in some layers)
-                        elif 'position' in selected_data:
-                            default_lon = selected_data['position'][0]
-                            default_lat = selected_data['position'][1]
 
 
-        # --- UI: Comment Section ---
-        st.subheader("💬 Add Comment")
-        
-        if show_comments:
-            # Form to add comment
-            with st.form("comment_form"):
-                c_col1, c_col2 = st.columns(2)
-                with c_col1:
-                     c_lat = st.number_input("Latitude", value=default_lat, format="%.6f")
-                with c_col2:
-                     c_lon = st.number_input("Longitude", value=default_lon, format="%.6f")
-            
-                c_text = st.text_area("Comment Text", value=default_text)
-                c_submit = st.form_submit_button("Add Comment")
-            
-                if c_submit:
-                    if c_text:
-                        import datetime
-                        new_comment = {
-                            "latitude": c_lat,
-                            "longitude": c_lon,
-                            "text": c_text,
-                            "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                            "ชื่อหน่วยเลือกตั้ง": "Comment: " + c_text[:20] # For tooltip compat
-                        }
-                        # Save to session
-                        st.session_state['comments'].append(new_comment)
-                        # Save to file
-                        save_comment(new_comment)
-                    
-                        st.success("Comment added and saved to file!")
-                        st.rerun()
-                    else:
-                        st.warning("Please enter some text.")
-        else:
-             st.info("Enable 'Comments' layer in sidebar to add comments.")
 
-        # --- Manage Comments at this Location ---
-        if show_comments and st.session_state['comments']:
-            # Import delete function
-            from utils.data_utils import delete_comment
-            
-            # Filter comments for the currently selected location
-            # Use small tolerance for float comparison or exact string match if they came from selection
-            # Simple float equality usually works if values came from the same source
-            current_loc_comments = [
-                c for c in st.session_state['comments'] 
-                if c['latitude'] == default_lat and c['longitude'] == default_lon
-            ]
-            
-            if current_loc_comments:
-                st.markdown("##### 🗑️ Manage Comments at this Location")
-                
-                for i, comment in enumerate(current_loc_comments):
-                    col1, col2 = st.columns([0.8, 0.2])
-                    with col1:
-                        ts = comment.get('timestamp', '')
-                        ts_str = f"**[{ts}]** " if ts else ""
-                        st.markdown(f"{ts_str}{comment.get('text', '')}")
-                    with col2:
-                        # Unique key for each button
-                        if st.button("❌", key=f"del_{i}_{comment.get('timestamp')}_{comment.get('text')[:5]}"):
-                            # 1. Delete from backend
-                            delete_comment(comment)
-                            # 2. Delete from session state
-                            if comment in st.session_state['comments']:
-                                st.session_state['comments'].remove(comment)
-                            st.rerun()
-                st.divider()
-
-        # Display Comments (Raw Table)
-        if show_comments and st.session_state['comments']:
-            st.markdown("---")
-            st.subheader("Existing Comments")
-            st.dataframe(pd.DataFrame(st.session_state['comments']))
 
     with tab_analysis:
         st.header("Analysis Details: Aggregated by Sub-district (ตำบล)")

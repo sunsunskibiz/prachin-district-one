@@ -155,7 +155,7 @@ def aggregate_tooltips(series):
     return f"<div style='{container_style}'>{items}</div>"
 
 def create_timeline_html(group):
-    html = "<div style='max-height: 200px; overflow-y: auto; color: black;'>" # color black for visibility
+    html = "<div style='max-height: 200px; overflow-y: auto; color: white;'>" # color white for visibility
     html += "<b>Comments Timeline</b><hr style='margin: 4px 0;'/>"
     
     # Sort by timestamp (assuming formatted string YYYY-MM-DD...)
@@ -164,7 +164,7 @@ def create_timeline_html(group):
     for _, row in group.iterrows():
         ts = row.get('timestamp', '')
         txt = row.get('text', '')
-        time_display = f"<span style='font-size: 0.8em; color: #666;'>{ts}</span><br/>" if ts else ""
+        time_display = f"<span style='font-size: 0.8em; color: #ccc;'>{ts}</span><br/>" if ts else ""
         html += f"<div style='margin-bottom: 8px; border-bottom: 1px solid #ccc; padding-bottom: 4px; font-size: 12px;'>{time_display}{txt}</div>"
     
     html += "</div>"
