@@ -819,6 +819,22 @@ def _main_app_logic(username):
                 selection_mode="single-object",
                 height=600
             )
+
+            # --- Metrics ---
+            if not df_points_display.empty and 'point_color' in df_points_display.columns:
+                 total_points = len(df_points_display)
+                 # Green is [0, 255, 0, 200]
+                 # We can check the second element (G) is 255 or sum is roughly green-ish?
+                 # safest is exact list match or check G channel
+                 
+                 def is_green(c):
+                     return c == [0, 255, 0, 200]
+                 
+                 green_points = df_points_display['point_color'].apply(is_green).sum()
+                 coverage_pct = (green_points / total_points) * 100 if total_points > 0 else 0
+                 
+                 st.info(f"**Coverage Status:** {green_points} / {total_points} points assigned ({coverage_pct:.2f}%)")
+                 st.progress(coverage_pct / 100)
             
         with col_form_p:
             # --- Handle Selection ---

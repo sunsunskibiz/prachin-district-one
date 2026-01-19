@@ -211,7 +211,11 @@ def get_point_comment_tooltip(row, comments_df, df_election=None):
         # Filter comments for ANY of these units
         # WE match by 'target_unit' name
         
-        unit_comments = comments_df[comments_df['target_unit'].isin(unit_names)]
+        # Check if target_unit column exists (it might be missing if only generic comments exist)
+        if 'target_unit' in comments_df.columns:
+            unit_comments = comments_df[comments_df['target_unit'].isin(unit_names)]
+        else:
+            unit_comments = pd.DataFrame()
         
         if not unit_comments.empty:
             has_comments = True
