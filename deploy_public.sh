@@ -3,7 +3,7 @@
 # Configuration
 PROJECT_ID="prachinburi-district-1"
 REGION="asia-southeast1"
-SERVICE_NAME="prachin-dashboard-public"
+SERVICE_NAME="man-prachin"
 GCS_BUCKET_NAME="prachin-voter-kml-storage"
 
 # Colors

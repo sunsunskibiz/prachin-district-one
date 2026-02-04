@@ -223,7 +223,7 @@ def main():
     show_color_blue = False
 
     # Default Map Style
-    selected_map_style = "mapbox://styles/mapbox/light-v9"
+    selected_map_style = "mapbox://styles/mapbox/outdoors-v12"
 
     # --- Data Processing for Map ---
     
