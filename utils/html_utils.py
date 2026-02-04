@@ -262,6 +262,32 @@ def get_point_comment_tooltip(row, comments_df, df_election=None):
         
     return f"<div style='min-width: 250px;'>{header}{comments_html}</div>"
 
+def format_thai_date(date_str):
+    """
+    Converts YYYY-MM-DD to D MMM YYYY (Thai BE).
+    Example: 2026-01-28 -> 28 ม.ค. 2569
+    """
+    try:
+        # Simple string parsing to avoid heavy datetime deps if format is consistent
+        # Assumed format: YYYY-MM-DD
+        parts = date_str.split('-')
+        if len(parts) != 3:
+            return date_str
+            
+        y, m, d = int(parts[0]), int(parts[1]), int(parts[2])
+        
+        thai_months = [
+            "", "ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.",
+            "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."
+        ]
+        
+        thai_year = y + 543
+        month_str = thai_months[m]
+        
+        return f"{d} {month_str} {thai_year}"
+    except:
+        return date_str
+
 def get_visit_tooltip(row):
     """
     Generates tooltip HTML specifically for the Visit Record tab.
@@ -296,7 +322,8 @@ def get_visit_tooltip(row):
         sorted_visits = sorted(visit_records, reverse=True)
         
         for v in sorted_visits:
-             html += f"<li>{v}</li>"
+             fmt_date = format_thai_date(v)
+             html += f"<li>{fmt_date}</li>"
         
         html += "</ul></div>"
     else:

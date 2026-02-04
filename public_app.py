@@ -8,7 +8,7 @@ import sys
 from utils.constants import CSV_FILE, KML_FILE
 from utils.geo_utils import create_mask_polygon, extract_subdistrict_name, extract_amphoe_name
 from utils.data_utils import load_comments, load_csv_data, load_kml_data, calculate_votes_by_subdistrict, load_campaign_pins, load_subdistrict_colors, load_visit_records
-from utils.html_utils import get_subdistrict_tooltip, get_election_html, aggregate_tooltips, create_timeline_html, get_visit_tooltip
+from utils.html_utils import get_subdistrict_tooltip, get_election_html, aggregate_tooltips, create_timeline_html, get_visit_tooltip, format_thai_date
 
 # --- Logging Config ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s', stream=sys.stdout)
@@ -84,13 +84,13 @@ def create_map_layers(
             stroked=True,
             filled=True, 
             get_fill_color="const_fill_color", 
-            get_line_color=[0, 0, 255, 255],
+            get_line_color=[219, 135, 79, 200],
             get_line_width=30,
             lineWidthMinPixels=2, 
             pickable=True, 
             auto_highlight=True,
             wireframe=True,
-            highlight_color=[0, 0, 255, 128],
+            highlight_color=[219, 135, 79, 200],
         )
         layers.append(layer_districts)
 
@@ -298,10 +298,8 @@ def main():
         on_select="rerun",
         selection_mode="single-object",
         key="public_map",
-        height=700
+        height=850
     )
-    
-    st.caption("Public Read-Only View. Login to edit.")
 
     # --- Visit Detail Panel (Right Side / Bottom) ---
     selection_state = st.session_state.get("public_map", {})
@@ -326,9 +324,9 @@ def main():
                            visits = visit_records.get(sub_name, [])
                            if visits:
                                for v in visits:
-                                   st.text(f"• {v}")
+                                   st.text(f"• {format_thai_date(v)}")
                            else:
-                               st.caption("No visits recorded.")
+                               st.success("กำลังมีแผนจะลงพื้นที่เร็วๆ นี้")
 
 if __name__ == "__main__":
     main()

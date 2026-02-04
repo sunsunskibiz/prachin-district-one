@@ -105,13 +105,13 @@ def create_map_layers(
             stroked=True,
             filled=True, 
             get_fill_color="const_fill_color", 
-            get_line_color=[0, 0, 255, 255],
+            get_line_color=[219, 135, 79, 200],
             get_line_width=30,
             lineWidthMinPixels=2, 
             pickable=True, 
             auto_highlight=True,
             wireframe=True,
-            highlight_color=[0, 0, 255, 128],
+            highlight_color=[219, 135, 79, 200],
         )
         layers.append(layer_districts)
 
@@ -171,11 +171,11 @@ def create_map_layers(
             stroked=True,
             filled=True,
             get_fill_color="winner_color",
-            get_line_color=[255, 255, 255, 100],
+            get_line_color=[219, 135, 79, 200],
             get_line_width=10,
             pickable=True,
             auto_highlight=True,
-            highlight_color=[0, 255, 255, 100],
+            highlight_color=[219, 135, 79, 200],
         )
         layers.append(layer_winner)
 
