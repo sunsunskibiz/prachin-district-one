@@ -5,99 +5,34 @@
 
 /opt/anaconda3/lib/python3.10/site-packages/google/api_core/_python_version_support.py:275: FutureWarning: You are using a Python version (3.10.19) which Google will stop supporting in new releases of google.api_core once it reaches its end of life (2026-10-04). Please upgrade to the latest Python version, or at least Python 3.11, to continue receiving updates for google.api_core past that date.
   warnings.warn(message, FutureWarning)
-2026-02-03 23:33:38,170 - INFO - --- Main App Run ---
-2026-02-03 23:33:38,244 - INFO - --- Main App Run ---
-2026-02-03 23:33:48,035 - WARNING - GCS Client not available (likely local mode): Your default credentials were not found. To set up Application Default Credentials, see https://cloud.google.com/docs/authentication/external/set-up-adc for more information.
-2026-02-03 23:33:48,036 - INFO - Listing files in bucket: prachin-voter-kml-storage with prefix: uploads/admin/
-2026-02-03 23:34:04,415 - INFO - --- Main App Run ---
-2026-02-03 23:34:04,733 - INFO - --- Main App Run ---
-2026-02-03 23:34:05,554 - INFO - --- Main App Run ---
-2026-02-03 23:34:29,793 - INFO - --- Main App Run ---
-2026-02-03 23:34:31,447 - INFO - --- Main App Run ---
-2026-02-03 23:34:31,999 - INFO - --- Main App Run ---
-2026-02-03 23:34:50,527 - INFO - --- Main App Run ---
-2026-02-03 23:35:36,895 - INFO - --- Main App Run ---
-[31m──[0m[31m────────────────────────[0m[31m [0m[1;31mTraceback [0m[1;2;31m(most recent call last)[0m[31m [0m[31m─────────────────────────[0m[31m──[0m
-[31m [0m [2;33m/opt/anaconda3/lib/python3.10/site-packages/streamlit/runtime/scriptrunner/[0m[1;33mexec_code[0m [31m [0m
-[31m [0m [1;33m.py[0m:[94m129[0m in [92mexec_func_with_error_handling[0m                                             [31m [0m
-[31m [0m                                                                                      [31m [0m
-[31m [0m [2;33m/opt/anaconda3/lib/python3.10/site-packages/streamlit/runtime/scriptrunner/[0m[1;33mscript_ru[0m [31m [0m
-[31m [0m [1;33mnner.py[0m:[94m672[0m in [92mcode_to_exec[0m                                                          [31m [0m
-[31m [0m                                                                                      [31m [0m
-[31m [0m [2;33m/Users/sunsun/Library/CloudStorage/GoogleDrive-chantapat.sun@gmail.com/My [0m           [31m [0m
-[31m [0m [2;33mDrive/Voter/prachin-district-one/[0m[1;33mapp.py[0m:[94m1258[0m in [92m<module>[0m                             [31m [0m
-[31m [0m                                                                                      [31m [0m
-[31m [0m   [2m1255 [0m[2m│   │   │   [0mst.info([33m"[0m[33mNo election data loaded.[0m[33m"[0m)                               [31m [0m
-[31m [0m   [2m1256 [0m                                                                              [31m [0m
-[31m [0m   [2m1257 [0m[94mif[0m [91m__name__[0m == [33m"[0m[33m__main__[0m[33m"[0m:                                                    [31m [0m
-[31m [0m [31m❱ [0m1258 [2m│   [0mmain()                                                                    [31m [0m
-[31m [0m   [2m1259 [0m                                                                              [31m [0m
-[31m [0m                                                                                      [31m [0m
-[31m [0m [2;33m/Users/sunsun/Library/CloudStorage/GoogleDrive-chantapat.sun@gmail.com/My [0m           [31m [0m
-[31m [0m [2;33mDrive/Voter/prachin-district-one/[0m[1;33mapp.py[0m:[94m249[0m in [92mmain[0m                                  [31m [0m
-[31m [0m                                                                                      [31m [0m
-[31m [0m   [2m 246 [0m[2m│   │   │   [0mauthenticator.logout([33m'[0m[33mLogout[0m[33m'[0m, [33m'[0m[33mmain[0m[33m'[0m)                            [31m [0m
-[31m [0m   [2m 247 [0m[2m│   │   │   [0mst.divider()                                                      [31m [0m
-[31m [0m   [2m 248 [0m[2m│   │   [0m                                                                      [31m [0m
-[31m [0m [31m❱ [0m 249 [2m│   │   [0m_main_app_logic(username)                                             [31m [0m
-[31m [0m   [2m 250 [0m[2m│   [0m                                                                          [31m [0m
-[31m [0m   [2m 251 [0m[2m│   [0m[94melif[0m st.session_state[[33m"[0m[33mauthentication_status[0m[33m"[0m] [95mis[0m [94mFalse[0m:                  [31m [0m
-[31m [0m   [2m 252 [0m[2m│   │   [0mst.error([33m'[0m[33mUsername/password is incorrect[0m[33m'[0m)                            [31m [0m
-[31m [0m                                                                                      [31m [0m
-[31m [0m [2;33m/Users/sunsun/Library/CloudStorage/GoogleDrive-chantapat.sun@gmail.com/My [0m           [31m [0m
-[31m [0m [2;33mDrive/Voter/prachin-district-one/[0m[1;33mapp.py[0m:[94m1015[0m in [92m_main_app_logic[0m                      [31m [0m
-[31m [0m                                                                                      [31m [0m
-[31m [0m   [2m1012 [0m[2m│   │   │   │    [0m                                                             [31m [0m
-[31m [0m   [2m1013 [0m[2m│   │   │   │    [0m[2m# Add New Visit[0m                                              [31m [0m
-[31m [0m   [2m1014 [0m[2m│   │   │   │    [0m[94mwith[0m st.form([33m"[0m[33madd_visit_form[0m[33m"[0m):                              [31m [0m
-[31m [0m [31m❱ [0m1015 [2m│   │   │   │   │    [0mnew_date = st.date_input([33m"[0m[33mSelect Date[0m[33m"[0m, value=datetime.d [31m [0m
-[31m [0m   [2m1016 [0m[2m│   │   │   │   │    [0madd_btn = st.form_submit_button([33m"[0m[33mAdd Visit Record[0m[33m"[0m)      [31m [0m
-[31m [0m   [2m1017 [0m[2m│   │   │   │   │    [0m                                                         [31m [0m
-[31m [0m   [2m1018 [0m[2m│   │   │   │   │    [0m[94mif[0m add_btn:                                              [31m [0m
-[31m────────────────────────────────────────────────────────────────────────────────────────[0m
-[1;91mUnboundLocalError: [0mlocal variable [32m'datetime'[0m referenced before assignment
-2026-02-03 23:36:03,173 - INFO - --- Main App Run ---
-2026-02-03 23:36:03,235 - INFO - --- Main App Run ---
-2026-02-03 23:36:03,242 - INFO - Listing files in bucket: prachin-voter-kml-storage with prefix: uploads/admin/
-2026-02-03 23:36:32,200 - INFO - --- Main App Run ---
-2026-02-03 23:37:16,024 - INFO - --- Main App Run ---
-[31m──[0m[31m────────────────────────[0m[31m [0m[1;31mTraceback [0m[1;2;31m(most recent call last)[0m[31m [0m[31m─────────────────────────[0m[31m──[0m
-[31m [0m [2;33m/opt/anaconda3/lib/python3.10/site-packages/streamlit/runtime/scriptrunner/[0m[1;33mexec_code[0m [31m [0m
-[31m [0m [1;33m.py[0m:[94m129[0m in [92mexec_func_with_error_handling[0m                                             [31m [0m
-[31m [0m                                                                                      [31m [0m
-[31m [0m [2;33m/opt/anaconda3/lib/python3.10/site-packages/streamlit/runtime/scriptrunner/[0m[1;33mscript_ru[0m [31m [0m
-[31m [0m [1;33mnner.py[0m:[94m672[0m in [92mcode_to_exec[0m                                                          [31m [0m
-[31m [0m                                                                                      [31m [0m
-[31m [0m [2;33m/Users/sunsun/Library/CloudStorage/GoogleDrive-chantapat.sun@gmail.com/My [0m           [31m [0m
-[31m [0m [2;33mDrive/Voter/prachin-district-one/[0m[1;33mapp.py[0m:[94m1258[0m in [92m<module>[0m                             [31m [0m
-[31m [0m                                                                                      [31m [0m
-[31m [0m   [2m1255 [0m[2m│   │   │   [0mst.info([33m"[0m[33mNo election data loaded.[0m[33m"[0m)                               [31m [0m
-[31m [0m   [2m1256 [0m                                                                              [31m [0m
-[31m [0m   [2m1257 [0m[94mif[0m [91m__name__[0m == [33m"[0m[33m__main__[0m[33m"[0m:                                                    [31m [0m
-[31m [0m [31m❱ [0m1258 [2m│   [0mmain()                                                                    [31m [0m
-[31m [0m   [2m1259 [0m                                                                              [31m [0m
-[31m [0m                                                                                      [31m [0m
-[31m [0m [2;33m/Users/sunsun/Library/CloudStorage/GoogleDrive-chantapat.sun@gmail.com/My [0m           [31m [0m
-[31m [0m [2;33mDrive/Voter/prachin-district-one/[0m[1;33mapp.py[0m:[94m249[0m in [92mmain[0m                                  [31m [0m
-[31m [0m                                                                                      [31m [0m
-[31m [0m   [2m 246 [0m[2m│   │   │   [0mauthenticator.logout([33m'[0m[33mLogout[0m[33m'[0m, [33m'[0m[33mmain[0m[33m'[0m)                            [31m [0m
-[31m [0m   [2m 247 [0m[2m│   │   │   [0mst.divider()                                                      [31m [0m
-[31m [0m   [2m 248 [0m[2m│   │   [0m                                                                      [31m [0m
-[31m [0m [31m❱ [0m 249 [2m│   │   [0m_main_app_logic(username)                                             [31m [0m
-[31m [0m   [2m 250 [0m[2m│   [0m                                                                          [31m [0m
-[31m [0m   [2m 251 [0m[2m│   [0m[94melif[0m st.session_state[[33m"[0m[33mauthentication_status[0m[33m"[0m] [95mis[0m [94mFalse[0m:                  [31m [0m
-[31m [0m   [2m 252 [0m[2m│   │   [0mst.error([33m'[0m[33mUsername/password is incorrect[0m[33m'[0m)                            [31m [0m
-[31m [0m                                                                                      [31m [0m
-[31m [0m [2;33m/Users/sunsun/Library/CloudStorage/GoogleDrive-chantapat.sun@gmail.com/My [0m           [31m [0m
-[31m [0m [2;33mDrive/Voter/prachin-district-one/[0m[1;33mapp.py[0m:[94m1015[0m in [92m_main_app_logic[0m                      [31m [0m
-[31m [0m                                                                                      [31m [0m
-[31m [0m   [2m1012 [0m[2m│   │   │   │    [0m                                                             [31m [0m
-[31m [0m   [2m1013 [0m[2m│   │   │   │    [0m[2m# Add New Visit[0m                                              [31m [0m
-[31m [0m   [2m1014 [0m[2m│   │   │   │    [0m[94mwith[0m st.form([33m"[0m[33madd_visit_form[0m[33m"[0m):                              [31m [0m
-[31m [0m [31m❱ [0m1015 [2m│   │   │   │   │    [0mnew_date = st.date_input([33m"[0m[33mSelect Date[0m[33m"[0m, value=datetime.d [31m [0m
-[31m [0m   [2m1016 [0m[2m│   │   │   │   │    [0madd_btn = st.form_submit_button([33m"[0m[33mAdd Visit Record[0m[33m"[0m)      [31m [0m
-[31m [0m   [2m1017 [0m[2m│   │   │   │   │    [0m                                                         [31m [0m
-[31m [0m   [2m1018 [0m[2m│   │   │   │   │    [0m[94mif[0m add_btn:                                              [31m [0m
-[31m────────────────────────────────────────────────────────────────────────────────────────[0m
-[1;91mUnboundLocalError: [0mlocal variable [32m'datetime'[0m referenced before assignment
-  Stopping...
+2026-02-04 10:07:38,246 - INFO - --- Main App Run ---
+2026-02-04 10:07:38,308 - INFO - --- Main App Run ---
+2026-02-04 10:07:45,482 - WARNING - GCS Client not available (likely local mode): Your default credentials were not found. To set up Application Default Credentials, see https://cloud.google.com/docs/authentication/external/set-up-adc for more information.
+2026-02-04 10:08:01,042 - INFO - --- Main App Run ---
+2026-02-04 10:08:01,107 - INFO - --- Main App Run ---
+2026-02-04 10:08:01,115 - INFO - Listing files in bucket: prachin-voter-kml-storage with prefix: uploads/admin/
+2026-02-04 10:08:27,400 - INFO - --- Main App Run ---
+2026-02-04 10:08:27,520 - INFO - --- Main App Run ---
+2026-02-04 10:08:27,530 - INFO - Listing files in bucket: prachin-voter-kml-storage with prefix: uploads/man/
+2026-02-04 10:08:29,314 - INFO - --- Main App Run ---
+2026-02-04 10:08:31,768 - INFO - --- Main App Run ---
+2026-02-04 10:08:32,915 - INFO - --- Main App Run ---
+2026-02-04 10:08:34,131 - INFO - --- Main App Run ---
+2026-02-04 10:08:34,743 - INFO - --- Main App Run ---
+2026-02-04 10:08:36,173 - INFO - --- Main App Run ---
+2026-02-04 10:08:37,081 - INFO - --- Main App Run ---
+2026-02-04 10:08:38,440 - INFO - --- Main App Run ---
+2026-02-04 10:08:39,157 - INFO - --- Main App Run ---
+2026-02-04 10:08:39,907 - INFO - --- Main App Run ---
+2026-02-04 10:08:41,818 - INFO - --- Main App Run ---
+2026-02-04 10:08:43,154 - INFO - --- Main App Run ---
+2026-02-04 10:08:44,371 - INFO - --- Main App Run ---
+2026-02-04 10:08:46,125 - INFO - --- Main App Run ---
+2026-02-04 10:08:47,334 - INFO - --- Main App Run ---
+2026-02-04 10:08:49,749 - INFO - --- Main App Run ---
+2026-02-04 10:08:52,767 - INFO - --- Main App Run ---
+2026-02-04 10:08:52,977 - INFO - --- Main App Run ---
+2026-02-04 10:08:55,052 - INFO - --- Main App Run ---
+2026-02-04 10:15:45,793 - INFO - --- Main App Run ---
+2026-02-04 10:15:46,042 - INFO - --- Main App Run ---
+2026-02-04 10:15:46,060 - INFO - Listing files in bucket: prachin-voter-kml-storage with prefix: uploads/man/

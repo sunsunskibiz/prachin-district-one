@@ -13,7 +13,7 @@ import streamlit_authenticator as stauth
 # Import from new utils
 from utils.constants import CSV_FILE, KML_FILE, GCS_BUCKET_NAME
 from utils.geo_utils import create_mask_polygon, extract_subdistrict_name, extract_amphoe_name, process_path_overlaps
-from utils.data_utils import load_comments, save_comment, load_csv_data, load_kml_data, calculate_votes_by_subdistrict, load_campaign_pins, load_subdistrict_colors, save_subdistrict_color, load_visit_records, save_visit_record
+from utils.data_utils import load_comments, save_comment, load_csv_data, load_kml_data, calculate_votes_by_subdistrict, load_campaign_pins, load_subdistrict_colors, save_subdistrict_color, load_visit_records, save_visit_record, delete_visit_record
 from utils.gcs_utils import list_gcs_kml_files, upload_to_gcs, load_kml_from_gcs, get_gcs_client
 from utils.html_utils import get_subdistrict_tooltip, get_election_html, aggregate_tooltips, create_timeline_html, get_visit_tooltip
 
@@ -1011,8 +1011,17 @@ def _main_app_logic(username):
                  
                  st.markdown("**Existing Visits:**")
                  if existing_visits:
-                     for v_date in existing_visits:
-                         st.text(f"• {v_date}")
+                     for i, v_date in enumerate(existing_visits):
+                         c_col1, c_col2 = st.columns([0.7, 0.3])
+                         with c_col1:
+                             st.text(f"• {v_date}")
+                         with c_col2:
+                             if st.button("Delete", key=f"del_visit_{i}_{default_sub_name_v}"):
+                                 delete_visit_record(default_sub_name_v, v_date)
+                                 # Update local state immediately
+                                 if default_sub_name_v in visit_records and v_date in visit_records[default_sub_name_v]:
+                                     visit_records[default_sub_name_v].remove(v_date)
+                                 st.rerun()
                  else:
                      st.caption("No visits recorded yet.")
                      

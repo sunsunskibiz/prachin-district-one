@@ -227,6 +227,37 @@ def save_visit_record(sub_district_name: str, date_str: str):
     except Exception as e:
         st.error(f"Error saving visit record: {e}")
 
+def delete_visit_record(sub_district_name: str, date_str: str):
+    """Deletes a visit date from a subdistrict (Local + GCS Sync)."""
+    try:
+        # Load current state
+        if os.path.exists(VISIT_RECORDS_FILE):
+             with open(VISIT_RECORDS_FILE, 'r') as f:
+                try:
+                    data = json.load(f)
+                except:
+                    return # Nothing to delete if corrupt
+        else:
+            return # Nothing to delete if no file
+        
+        # Check if exists
+        if sub_district_name in data and date_str in data[sub_district_name]:
+            data[sub_district_name].remove(date_str)
+            # If empty list, keep it or remove key? 
+            # Keeping it is fine, just empty list.
+            
+            # Save Local
+            with open(VISIT_RECORDS_FILE, 'w') as f:
+                json.dump(data, f)
+                
+            # Sync to GCS
+            json_content = json.dumps(data)
+            from .gcs_utils import upload_text_to_gcs
+            upload_text_to_gcs(json_content, GCS_BUCKET_NAME, f"shared/{VISIT_RECORDS_FILE}")
+            
+    except Exception as e:
+        st.error(f"Error deleting visit record: {e}")
+
 @st.cache_data
 def load_csv_data(filepath: str) -> pd.DataFrame:
     """Loads election data from CSV."""
