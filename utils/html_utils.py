@@ -67,7 +67,23 @@ def get_subdistrict_tooltip(row):
     
     chart_table = f"<table style='width:100%; border-collapse: collapse;'>{''.join(chart_rows)}</table>"
     
-    return header + stats_html + chart_table
+    # 5. Visit History (Optional)
+    visit_history_html = ""
+    visit_records = row.get('visit_records', [])
+    if visit_records:
+        visit_history_html = "<div style='margin-top: 8px; border-top: 1px solid #ddd; padding-top: 5px;'>"
+        visit_history_html += "<div style='font-size: 11px; font-weight: bold; color: #E65100; margin-bottom: 2px;'>ประวัติการลงพื้นที่:</div>"
+        
+        # Limit to last 5
+        recent_visits = sorted(visit_records, reverse=True)[:5]
+        for v in recent_visits:
+            visit_history_html += f"<div style='font-size: 10px; color: #555;'>• {v}</div>"
+            
+        if len(visit_records) > 5:
+            visit_history_html += f"<div style='font-size: 9px; color: #888; margin-top: 2px;'>...and {len(visit_records)-5} more</div>"
+        visit_history_html += "</div>"
+
+    return header + stats_html + chart_table + visit_history_html
 
 def get_election_html(row):
     # General Info Columns
@@ -245,3 +261,45 @@ def get_point_comment_tooltip(row, comments_df, df_election=None):
         comments_html = "<div style='font-size: 11px; color: #888; margin-top: 5px;'><i>Click to add contact info</i></div>"
         
     return f"<div style='min-width: 250px;'>{header}{comments_html}</div>"
+
+def get_visit_tooltip(row):
+    """
+    Generates tooltip HTML specifically for the Visit Record tab.
+    Prioritizes Visit Data.
+    """
+    # 1. Header
+    t_val = row.get('sub_district_name', 'Sub-district')
+    a_val = row.get('amphoe_name', '')
+    
+    header = f"<b>ต.{t_val}</b>"
+    if a_val:
+        header += f"<br/>อ.{a_val}"
+    header += "<hr style='margin: 5px 0;'/>"
+    
+    # 2. Visit Data
+    # Expect 'visit_records' to be a list of date strings
+    visit_records = row.get('visit_records', [])
+    if isinstance(visit_records, float): # Handle NaN
+        visit_records = []
+        
+    count = len(visit_records)
+    
+    html = header
+    html += f"<div style='margin-bottom: 5px; color: white;'><b>Total Visits:</b> {count}</div>"
+    html += "<hr style='margin: 5px 0; border-top: 1px solid rgba(255,255,255,0.3); border-bottom: 0;'/>"
+    
+    if visit_records:
+        html += "<div style='font-size: 11px; max-height: 200px; overflow-y: auto;'>"
+        html += "<ul style='padding-left: 15px; margin: 0; color: white;'>"
+        
+        # Sort descending
+        sorted_visits = sorted(visit_records, reverse=True)
+        
+        for v in sorted_visits:
+             html += f"<li>{v}</li>"
+        
+        html += "</ul></div>"
+    else:
+        html += "<div style='font-size: 11px; color: #ccc; font-style: italic;'>No visits recorded</div>"
+        
+    return html

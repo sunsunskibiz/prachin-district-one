@@ -5,7 +5,7 @@ from fastkml import kml
 from typing import Optional
 import os
 import io
-from .constants import COMMENTS_FILE, GCS_BUCKET_NAME, COLORS_FILE
+from .constants import COMMENTS_FILE, GCS_BUCKET_NAME, COLORS_FILE, VISIT_RECORDS_FILE
 import json
 # Note: Circular import risk if we import load_kml_from_gcs here if it imports this.
 # Avoiding circular import by importing inside function or using separate module structure correctly.
@@ -165,6 +165,67 @@ def save_subdistrict_color(sub_district_name: str, color_key: str):
             
     except Exception as e:
         st.error(f"Error saving color: {e}")
+
+def load_visit_records() -> dict:
+    """Loads visit records from JSON file (First GCS, then Local fallback)."""
+    # Try GCS First (Sync)
+    from .gcs_utils import download_text_from_gcs
+    try:
+        json_text = download_text_from_gcs(GCS_BUCKET_NAME, f"shared/{VISIT_RECORDS_FILE}")
+        if json_text:
+            data = json.loads(json_text)
+            # Save to local for fallback/cache
+            with open(VISIT_RECORDS_FILE, 'w') as f:
+                json.dump(data, f)
+            return data
+    except Exception as e:
+        # st.warning(f"Note: Could not load visit records from GCS: {e}") 
+        pass
+
+    # Fallback to local
+    if os.path.exists(VISIT_RECORDS_FILE):
+        try:
+            with open(VISIT_RECORDS_FILE, 'r') as f:
+                return json.load(f)
+        except Exception as e:
+            return {}
+    return {}
+
+def save_visit_record(sub_district_name: str, date_str: str):
+    """Appends a visit date to a subdistrict (Local + GCS Sync)."""
+    try:
+        # Load current state
+        if os.path.exists(VISIT_RECORDS_FILE):
+             with open(VISIT_RECORDS_FILE, 'r') as f:
+                try:
+                    data = json.load(f)
+                except:
+                    data = {}
+        else:
+            data = {}
+        
+        # Initialize if not exists
+        if sub_district_name not in data:
+            data[sub_district_name] = []
+            
+        # Append logic (avoid duplicates if needed, or allow?)
+        # Let's simple append for now. 
+        if date_str not in data[sub_district_name]:
+            data[sub_district_name].append(date_str)
+            # Sort dates?
+            data[sub_district_name].sort() 
+        
+        # Save Local
+        with open(VISIT_RECORDS_FILE, 'w') as f:
+            json.dump(data, f)
+            
+        # Sync to GCS
+        json_content = json.dumps(data)
+        from .gcs_utils import upload_text_to_gcs
+        upload_text_to_gcs(json_content, GCS_BUCKET_NAME, f"shared/{VISIT_RECORDS_FILE}")
+            
+    except Exception as e:
+        st.error(f"Error saving visit record: {e}")
 
 @st.cache_data
 def load_csv_data(filepath: str) -> pd.DataFrame:

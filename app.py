@@ -6,15 +6,16 @@ import logging
 import sys
 import os
 import yaml
+import datetime # Added for Visit Record
 from yaml.loader import SafeLoader
 import streamlit_authenticator as stauth
 
 # Import from new utils
 from utils.constants import CSV_FILE, KML_FILE, GCS_BUCKET_NAME
 from utils.geo_utils import create_mask_polygon, extract_subdistrict_name, extract_amphoe_name, process_path_overlaps
-from utils.data_utils import load_comments, save_comment, load_csv_data, load_kml_data, calculate_votes_by_subdistrict, load_campaign_pins, load_subdistrict_colors, save_subdistrict_color
+from utils.data_utils import load_comments, save_comment, load_csv_data, load_kml_data, calculate_votes_by_subdistrict, load_campaign_pins, load_subdistrict_colors, save_subdistrict_color, load_visit_records, save_visit_record
 from utils.gcs_utils import list_gcs_kml_files, upload_to_gcs, load_kml_from_gcs, get_gcs_client
-from utils.html_utils import get_subdistrict_tooltip, get_election_html, aggregate_tooltips, create_timeline_html
+from utils.html_utils import get_subdistrict_tooltip, get_election_html, aggregate_tooltips, create_timeline_html, get_visit_tooltip
 
 # --- Logging Config ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s', stream=sys.stdout)
@@ -45,6 +46,7 @@ def create_map_layers(
     gdf_districts, subdistrict_colors,
     show_districts, show_winner, show_points, show_campaign_pins, show_comments,
     show_color_orange, show_color_green, show_color_brown, show_color_blue,
+    show_visit_heatmap, visit_records, # New Arguments
     active_uploaded_layers, kml_layers,
     df_map_points, gdf_campaign_pins, df_comments_agg
 ):
@@ -82,6 +84,15 @@ def create_map_layers(
              elif assigned_color == 'blue' and show_color_blue:
                  return [173, 216, 230, base_alpha]
              
+             # Visit Heatmap Override
+             if show_visit_heatmap:
+                 visits = visit_records.get(s_name, [])
+                 count = len(visits)
+                 if count > 0:
+                     if count < 3: return [255, 204, 128, 200]    # Level 1: Light Orange
+                     elif count < 7: return [255, 165, 0, 200]    # Level 2: Medium Orange
+                     else: return [230, 81, 0, 200]               # Level 3: Dark Orange (Reddish)
+
              return [0, 0, 0, 0] 
 
         gdf_districts['const_fill_color'] = gdf_districts.apply(get_district_fill_color, axis=1)
@@ -264,6 +275,9 @@ def _main_app_logic(username):
             
         # Load Sub-district Colors
         subdistrict_colors = load_subdistrict_colors()
+        
+        # Load Visit Records
+        visit_records = load_visit_records()
 
         # KML uploader
         st.sidebar.header("Data Source")
@@ -365,10 +379,17 @@ def _main_app_logic(username):
     show_point_comments = st.sidebar.checkbox("Point Contact Info", value=True)
 
     st.sidebar.markdown("**Color Highlights:**")
-    show_color_orange = st.sidebar.checkbox("เทสีส้ม", value=True)
-    show_color_green = st.sidebar.checkbox("เทสีเขียว", value=True)
-    show_color_brown = st.sidebar.checkbox("เทสีน้ำตาล", value=True)
-    show_color_blue = st.sidebar.checkbox("เทสีฟ้า", value=True)
+    show_color_orange = st.sidebar.checkbox("เทสีส้ม", value=False)
+    show_color_green = st.sidebar.checkbox("เทสีเขียว", value=False)
+    show_color_brown = st.sidebar.checkbox("เทสีน้ำตาล", value=False)
+    show_color_blue = st.sidebar.checkbox("เทสีฟ้า", value=False)
+    
+    st.sidebar.markdown("**Visit Analysis:**")
+    show_visit_heatmap = st.sidebar.checkbox("Show Visit Heatmap", value=False)
+    if show_visit_heatmap:
+        st.sidebar.caption("🟠 Level 1 (<3): Light")
+        st.sidebar.caption("🟠 Level 2 (3-6): Medium")
+        st.sidebar.caption("🔴 Level 3 (7+): Dark")
     
     # Dynamic Controls for Uploaded Layers
     active_uploaded_layers = []
@@ -468,11 +489,11 @@ def _main_app_logic(username):
 
     st.session_state['active_tab'] = st.radio(
         "Navigation", 
-        options=["Overview", "Analysis Details", "Color Assign", "Comment Assign", "Point Comment"], 
+        options=["Overview", "Analysis Details", "Color Assign", "Comment Assign", "Point Comment", "Visit Record"], 
         horizontal=True,
         label_visibility="collapsed",
         key="nav_radio",
-        index=["Overview", "Analysis Details", "Color Assign", "Comment Assign", "Point Comment"].index(st.session_state['active_tab'])
+        index=["Overview", "Analysis Details", "Color Assign", "Comment Assign", "Point Comment", "Visit Record"].index(st.session_state['active_tab'])
     )
 
     # Note: We use st.session_state['active_tab'] to control visibility
@@ -496,7 +517,8 @@ def _main_app_logic(username):
                 gdf_districts, subdistrict_colors,
                 show_districts, show_winner, False, False, False, # Hide points/comments in settings map for clarity
                 show_color_orange, show_color_green, show_color_brown, show_color_blue,
-                [], st.session_state['kml_layers'], # No uploaded layers in settings map to avoid clutter
+                False, {}, # No Heatmap in Settings Map
+                [], st.session_state['kml_layers'], 
                 None, None, None 
             )
             
@@ -639,6 +661,7 @@ def _main_app_logic(username):
                 True,  # show_comments (Always show in this tab?) Let's respect sidebar or force true?
                        # User might want to toggle. Let's respect sidebar 'show_comments'.
                 show_color_orange, show_color_green, show_color_brown, show_color_blue,
+                False, {},
                 [], {}, 
                 None, None, df_comments_agg
             )
@@ -707,7 +730,7 @@ def _main_app_logic(username):
                 
                 if c_submit:
                     if c_text:
-                        import datetime
+
                         new_comment = {
                             "latitude": c_lat,
                             "longitude": c_lon,
@@ -800,6 +823,7 @@ def _main_app_logic(username):
                 False, # show_campaign_pins
                 False, # show_comments (Hide generic comments to focus on points?)
                 False, False, False, False, # No colors
+                False, {}, # show_visit_heatmap, visit_records
                 [], {}, 
                 df_points_display, # Pass map points with updated tooltips
                 None, None # No point comments aggregation here yet or pass generic if needed
@@ -822,25 +846,21 @@ def _main_app_logic(username):
 
             # --- Metrics ---
             if not df_points_display.empty and 'point_color' in df_points_display.columns:
-                 total_points = len(df_points_display)
-                 # Green is [0, 255, 0, 200]
-                 # We can check the second element (G) is 255 or sum is roughly green-ish?
-                 # safest is exact list match or check G channel
-                 
+                 # Count Green
+                 # Note: point_color is a list/array
                  def is_green(c):
-                     return c == [0, 255, 0, 200]
+                     return c[0] == 0 and c[1] == 255
                  
-                 green_points = df_points_display['point_color'].apply(is_green).sum()
-                 coverage_pct = (green_points / total_points) * 100 if total_points > 0 else 0
+                 green_count = df_points_display['point_color'].apply(is_green).sum()
+                 total_points = len(df_points_display)
+                 pct = (green_count / total_points) * 100 if total_points > 0 else 0
                  
-                 st.info(f"**Coverage Status:** {green_points} / {total_points} points assigned ({coverage_pct:.2f}%)")
-                 st.progress(coverage_pct / 100)
-            
+                 st.metric("Contact Info Coverage", f"{green_count} / {total_points}", f"{pct:.1f}%")
+        
         with col_form_p:
-            # --- Handle Selection ---
-            sel_lat = 0.0
-            sel_lon = 0.0
-            sel_units = []
+            # Handle Selection
+            default_p_name = ""
+            valid_point = False
             
             selection_state_p = st.session_state.get("point_comment_map", {})
             if selection_state_p and "selection" in selection_state_p:
@@ -849,82 +869,178 @@ def _main_app_logic(username):
                     obj = selection["objects"].values()
                     for obj_list in obj:
                         if obj_list:
-                            data = obj_list[0]
-                            # Check if it's a point (has lat/lon direct or from properties)
-                            if 'latitude' in data and 'longitude' in data:
-                                sel_lat = data['latitude']
-                                sel_lon = data['longitude']
-                                
-                                # Find units at this location
-                                # use df_election to lookup
-                                if not df_election.empty:
-                                    matches = df_election[
-                                        (df_election['latitude'] == sel_lat) & 
-                                        (df_election['longitude'] == sel_lon)
-                                    ]
-                                    if not matches.empty:
-                                        sel_units = matches['ชื่อหน่วยเลือกตั้ง'].unique().tolist()
+                            selected_data = obj_list[0]
+                            # Look for point data
+                            if 'ชื่อหน่วยเลือกตั้ง' in selected_data:
+                                default_p_name = selected_data['ชื่อหน่วยเลือกตั้ง']
+                                valid_point = True
             
-            if sel_units:
-                st.subheader("Add Contact Info")
-                with st.form("point_comment_form"):
-                    target_unit = st.selectbox("Select Unit", options=sel_units)
-                    
-                    st.divider()
-                    c_name = st.text_input("Name (ชื่อผู้ติดต่อ)")
-                    c_line = st.text_input("Line ID")
-                    c_tel = st.text_input("Tel No (เบอร์โทร)")
-                    c_note = st.text_area("Note / Comment")
-                    
-                    submit_p = st.form_submit_button("Save Contact Info")
-                    
-                    if submit_p:
-                        if c_name or c_note: # Require at least name or note
-                            import datetime
-                            new_p_comment = {
-                                "latitude": sel_lat,
-                                "longitude": sel_lon,
-                                "text": c_note,
-                                "contact_name": c_name,
-                                "contact_line": c_line,
-                                "contact_tel": c_tel,
-                                "target_unit": target_unit,
-                                "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                                "ชื่อหน่วยเลือกตั้ง": f"Contact: {c_name} ({target_unit})"       
-                            }
-                            st.session_state['comments'].append(new_p_comment)
-                            save_comment(new_p_comment)
-                            st.success(f"Saved for {target_unit}!")
-                            st.rerun()
-                        else:
-                            st.error("Please enter Name or Note.")
-                            
-                # Show existing comments for this location
-                # Filter by slight tolerance
-                loc_comments = [
-                    c for c in st.session_state.get('comments', [])
-                    if abs(c.get('latitude', 0) - sel_lat) < 0.0001 and abs(c.get('longitude', 0) - sel_lon) < 0.0001
-                ]
+            if valid_point:
+                st.subheader(f"Unit: {default_p_name}")
                 
-                if loc_comments:
-                    st.write("---")
-                    st.write("**Existing Records:**")
+                with st.form("point_contact_form"):
+                    c_name = st.text_input("Contact Name")
+                    c_tel = st.text_input("Tel")
+                    c_line = st.text_input("Line ID")
+                    c_note = st.text_area("Note/Comment")
+                    
+                    submitted = st.form_submit_button("Save Contact Info")
+                    
+                    if submitted:
+                        if c_name or c_note:
+                            new_contact = {
+                                "target_unit": default_p_name,
+                                "contact_name": c_name,
+                                "contact_tel": c_tel,
+                                "contact_line": c_line,
+                                "text": c_note, # Compatible with generic comment schema
+                                "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                                "latitude": 0, # Placeholder or lookup if needed
+                                "longitude": 0 # Placeholder
+                            }
+                            # Optional: Lookup lat/lon from df_map_points for completeness
+                            if not df_map_points.empty:
+                                match = df_map_points[df_map_points['tooltip_html'].str.contains(default_p_name, regex=False)]
+                                # This is weak. Better lookup from df_election raw or just ignore lat/lon for point comments?
+                                # Let's ignore for now, this is relational data.
+                            
+                            st.session_state['comments'].append(new_contact)
+                            save_comment(new_contact)
+                            st.success(f"Saved for {default_p_name}")
+                            st.rerun()
+                            
+                # List existing for this unit
+                current_comments = st.session_state.get('comments', [])
+                unit_comments = [c for c in current_comments if c.get('target_unit') == default_p_name]
+                
+                if unit_comments:
+                    st.divider()
+                    st.write("Existing Contacts:")
                     from utils.data_utils import delete_comment
-                    for i, c in enumerate(loc_comments):
-                         with st.expander(f"{c.get('contact_name', 'Unknown')} - {c.get('timestamp')}"):
-                             st.write(f"**Unit:** {c.get('target_unit', '-')}")
-                             st.write(f"**Tel:** {c.get('contact_tel', '-')}")
-                             st.write(f"**Line:** {c.get('contact_line', '-')}")
-                             st.write(f"**Note:** {c.get('text', '-')}")
-                             
-                             if st.button("Delete", key=f"del_p_{i}"):
-                                 delete_comment(c)
-                                 if c in st.session_state['comments']:
-                                     st.session_state['comments'].remove(c)
+                    for i, u_comm in enumerate(unit_comments):
+                         with st.container():
+                             st.caption(f"**{u_comm.get('contact_name')}** ({u_comm.get('timestamp')})")
+                             st.write(u_comm.get('text'))
+                             if st.button("Delete", key=f"del_p_{i}_{default_p_name}"):
+                                 delete_comment(u_comm)
+                                 if u_comm in st.session_state['comments']:
+                                     st.session_state['comments'].remove(u_comm)
                                  st.rerun()
-
+                                 
             else:
-                st.info("👈 Please click on a Red Point (Election Unit) on the map.")
+                 st.info("Select a Red Point (Election Unit) to add contact info.")
+
+    # --- TAB: VISIT RECORD ---
+    if st.session_state['active_tab'] == "Visit Record":
+        st.header("Visit Record Management")
+        
+        col_map_v, col_form_v = st.columns([2, 1])
+        
+        with col_map_v:
+            st.subheader("Select District to Add Visit")
+            
+            # Prepare special GDF for Visit Display (Custom Tooltip)
+            gdf_visit_display = gdf_districts.copy() if gdf_districts is not None else None
+            if gdf_visit_display is not None:
+                # Merge visit records for tooltip display
+                gdf_visit_display['visit_records'] = gdf_visit_display['sub_district_name'].map(visit_records)
+                # Apply Visit-specific Tooltip
+                gdf_visit_display['tooltip_html'] = gdf_visit_display.apply(get_visit_tooltip, axis=1)
+
+            # Map Layers (Districts + Heatmap if toggle is ON by sidebar, NO points)
+            # We want to show the heatmap here implicitly if useful?
+            # Or just standard districts. Let's use the standard district view.
+            # If sidebar 'Show Visit Heatmap' is checked, layers will already have color overrides.
+            
+            layers_visit = create_map_layers(
+                gdf_visit_display, subdistrict_colors,
+                True, # show_districts
+                False, # show_winner
+                False, # show_points
+                False, # show_campaign_pins
+                False, # show_comments
+                show_color_orange, show_color_green, show_color_brown, show_color_blue,
+                show_visit_heatmap, visit_records, # Pass visit data for coloring
+                active_uploaded_layers, st.session_state['kml_layers'], 
+                None, None, None 
+            )
+            
+            view_state_visit = pdk.ViewState(latitude=14.0, longitude=101.5, zoom=9)
+            
+            st.pydeck_chart(
+                pdk.Deck(
+                    layers=layers_visit,
+                    initial_view_state=view_state_visit,
+                    map_style="mapbox://styles/mapbox/light-v9",
+                    tooltip={"html": "{tooltip_html}", "style": {"color": "white"}}
+                ),
+                key="visit_map",
+                on_select="rerun",
+                selection_mode="single-object",
+                height=600
+            )
+
+        with col_form_v:
+            # Handle Selection
+            default_sub_name_v = ""
+            valid_subdistrict_v = False
+            
+            selection_state_v = st.session_state.get("visit_map", {})
+            
+            # Check selection
+            if selection_state_v and "selection" in selection_state_v:
+                selection = selection_state_v["selection"]
+                if selection and "objects" in selection and selection["objects"]:
+                    obj = selection["objects"].values()
+                    for obj_list in obj:
+                        if obj_list:
+                            selected_data = obj_list[0]
+                            # Try to extract sub_district_name
+                            if 'sub_district_name' in selected_data:
+                                default_sub_name_v = selected_data['sub_district_name']
+                                valid_subdistrict_v = True
+                            elif 'properties' in selected_data and 'sub_district_name' in selected_data['properties']:
+                                default_sub_name_v = selected_data['properties']['sub_district_name']
+                                valid_subdistrict_v = True
+            
+            if valid_subdistrict_v:
+                 st.markdown(f"### District: `{default_sub_name_v}`")
+                 
+                 # Show existing visits
+                 existing_visits = visit_records.get(default_sub_name_v, [])
+                 
+                 st.markdown("**Existing Visits:**")
+                 if existing_visits:
+                     for v_date in existing_visits:
+                         st.text(f"• {v_date}")
+                 else:
+                     st.caption("No visits recorded yet.")
+                     
+                 st.divider()
+                 
+                 # Add New Visit
+                 with st.form("add_visit_form"):
+                     new_date = st.date_input("Select Date", value=datetime.datetime.now())
+                     add_btn = st.form_submit_button("Add Visit Record")
+                     
+                     if add_btn:
+                         date_str = new_date.strftime("%Y-%m-%d")
+                         save_visit_record(default_sub_name_v, date_str)
+                         
+                         # Update local state immediately for UI response
+                         if default_sub_name_v not in visit_records:
+                             visit_records[default_sub_name_v] = []
+                         if date_str not in visit_records[default_sub_name_v]:
+                             visit_records[default_sub_name_v].append(date_str)
+                             
+                         st.success(f"Added visit on {date_str}")
+                         time.sleep(1)
+                         st.rerun()
+                         
+            else:
+                 st.info("Select a District on the map to manage visit records.")
+
+            
 
     # --- TAB: OVERVIEW ---
     if st.session_state['active_tab'] == "Overview":
@@ -1033,6 +1149,7 @@ def _main_app_logic(username):
             show_districts, show_winner, show_points, show_campaign_pins, 
             True, # Always True for comments layer, as we control it via df_comments_final being empty or not
             show_color_orange, show_color_green, show_color_brown, show_color_blue,
+            show_visit_heatmap, visit_records,
             active_uploaded_layers, st.session_state['kml_layers'],
             df_map_points_filtered, gdf_campaign_pins, df_comments_final
         )
