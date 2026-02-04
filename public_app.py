@@ -7,8 +7,8 @@ import sys
 # Import from utils
 from utils.constants import CSV_FILE, KML_FILE
 from utils.geo_utils import create_mask_polygon, extract_subdistrict_name, extract_amphoe_name
-from utils.data_utils import load_comments, load_csv_data, load_kml_data, calculate_votes_by_subdistrict, load_campaign_pins, load_subdistrict_colors
-from utils.html_utils import get_subdistrict_tooltip, get_election_html, aggregate_tooltips, create_timeline_html
+from utils.data_utils import load_comments, load_csv_data, load_kml_data, calculate_votes_by_subdistrict, load_campaign_pins, load_subdistrict_colors, load_visit_records
+from utils.html_utils import get_subdistrict_tooltip, get_election_html, aggregate_tooltips, create_timeline_html, get_visit_tooltip
 
 # --- Logging Config ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s', stream=sys.stdout)
@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 # --- Page Config ---
 st.set_page_config(
-    page_title="Dashboard of Prachinburi District 1 (Public)",
+    page_title="ใกล้ชิด แมนปราจีน",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -26,6 +26,7 @@ def create_map_layers(
     gdf_districts, subdistrict_colors,
     show_districts, show_winner, show_points, show_campaign_pins, show_comments,
     show_color_orange, show_color_green, show_color_brown, show_color_blue,
+    show_visit_heatmap, visit_records,
     active_uploaded_layers, kml_layers,
     df_map_points, gdf_campaign_pins, df_comments_agg
 ):
@@ -62,6 +63,15 @@ def create_map_layers(
              elif assigned_color == 'blue' and show_color_blue:
                  return [173, 216, 230, base_alpha]
              
+             # Visit Heatmap Override
+             if show_visit_heatmap:
+                 visits = visit_records.get(s_name, [])
+                 count = len(visits)
+                 if count > 0:
+                     if count < 3: return [255, 204, 128, 200]    # Level 1: Light Orange
+                     elif count < 7: return [255, 165, 0, 200]    # Level 2: Medium Orange
+                     else: return [230, 81, 0, 200]               # Level 3: Dark Orange (Reddish)
+
              return [0, 0, 0, 0] 
 
         gdf_districts['const_fill_color'] = gdf_districts.apply(get_district_fill_color, axis=1)
@@ -171,7 +181,7 @@ def create_map_layers(
 
 def main():
     logger.info("--- Public App Run ---")
-    st.title("Dashboard of Prachinburi District 1 (Public View)")
+    st.title("ใกล้ชิด แมนปราจีน")
 
     # Data Loading
     with st.spinner("Loading public data..."):
@@ -186,38 +196,34 @@ def main():
         subdistrict_colors = load_subdistrict_colors()
         
         # Load Comments (Read Only)
+        # Load Comments (Read Only)
         comments = load_comments()
+        
+        # Load Visit Records
+        visit_records = load_visit_records()
 
-    # --- Sidebar Controls ---
-    st.sidebar.header("Layer Controls")
-    show_districts = st.sidebar.checkbox("แสดงเขตตำบล", value=True)
-    show_winner = st.sidebar.checkbox("แสดงเขตผู้ชนะ", value=False)
-    show_points = st.sidebar.checkbox("หน่วยเลือกตั้ง", value=True)
-    show_campaign_pins = st.sidebar.checkbox("จุดติดป้าย", value=False)
+    # --- Main Controls (No Sidebar) ---
+    col_ctrl, col_info = st.columns([1, 3])
+    with col_ctrl:
+        # show_visit_heatmap = st.checkbox("Show Visit Heatmap", value=False)
+        show_visit_heatmap = True # Force ON for public view
+        if show_visit_heatmap:
+            st.caption("🟠 <3 visits | 🟠 3-6 visits | 🔴 7+ visits")
     
-    st.sidebar.markdown("**Comment Layers:**")
-    show_comments = st.sidebar.checkbox("General Comments", value=True)
+    # Layer Config (Hardcoded for public view)
+    show_districts = True
+    show_winner = False
+    show_points = False
+    show_campaign_pins = False
+    show_comments = False
     
-    st.sidebar.markdown("**Color Highlights:**")
-    show_color_orange = st.sidebar.checkbox("เทสีส้ม", value=True)
-    show_color_green = st.sidebar.checkbox("เทสีเขียว", value=True)
-    show_color_brown = st.sidebar.checkbox("เทสีน้ำตาล", value=True)
-    show_color_blue = st.sidebar.checkbox("เทสีฟ้า", value=True)
-    
-    st.sidebar.markdown("---")
-    st.sidebar.header("Map Style")
-    map_style_selection = st.sidebar.radio(
-        "Select Base Map",
-        options=["Satellite", "Default (Light)", "Terrain (ภูมิประเทศ)"],
-        index=1
-    )
-    
-    map_styles = {
-        "Satellite": "mapbox://styles/mapbox/satellite-v9",
-        "Default (Light)": "mapbox://styles/mapbox/light-v9",
-        "Terrain (ภูมิประเทศ)": "mapbox://styles/mapbox/outdoors-v12"
-    }
-    selected_map_style = map_styles.get(map_style_selection, "mapbox://styles/mapbox/light-v9")
+    show_color_orange = False
+    show_color_green = False
+    show_color_brown = False
+    show_color_blue = False
+
+    # Default Map Style
+    selected_map_style = "mapbox://styles/mapbox/light-v9"
 
     # --- Data Processing for Map ---
     
@@ -243,7 +249,11 @@ def main():
             if 'Winner_Pct' in gdf_districts.columns:
                  gdf_districts['Winner_Pct'] = gdf_districts['Winner_Pct'].fillna(0)
                  
-        gdf_districts['tooltip_html'] = gdf_districts.apply(get_subdistrict_tooltip, axis=1)
+        if show_visit_heatmap:
+             gdf_districts['visit_records'] = gdf_districts['sub_district_name'].map(visit_records)
+             gdf_districts['tooltip_html'] = gdf_districts.apply(get_visit_tooltip, axis=1)
+        else:
+             gdf_districts['tooltip_html'] = gdf_districts.apply(get_subdistrict_tooltip, axis=1)
 
     # 3. Process Points (Aggregation)
     df_map_points = pd.DataFrame()
@@ -265,10 +275,12 @@ def main():
              ).reset_index()
 
     # --- Render Map ---
+    # --- Render Map ---
     layers = create_map_layers(
         gdf_districts, subdistrict_colors,
         show_districts, show_winner, show_points, show_campaign_pins, show_comments,
         show_color_orange, show_color_green, show_color_brown, show_color_blue,
+        show_visit_heatmap, visit_records,
         [], {}, # No uploaded layers support for public
         df_map_points, gdf_campaign_pins, df_comments_agg
     )
@@ -283,10 +295,40 @@ def main():
             tooltip={"html": "{tooltip_html}", "style": {"color": "white"}}
         ),
         use_container_width=True,
+        on_select="rerun",
+        selection_mode="single-object",
+        key="public_map",
         height=700
     )
     
     st.caption("Public Read-Only View. Login to edit.")
+
+    # --- Visit Detail Panel (Right Side / Bottom) ---
+    selection_state = st.session_state.get("public_map", {})
+    if selection_state and "selection" in selection_state:
+        selection = selection_state["selection"]
+        if selection and "objects" in selection and selection["objects"]:
+             obj_list = list(selection["objects"].values())[0] # Get first object list
+             if obj_list:
+                  selected_data = obj_list[0]
+                  
+                  # Extract name
+                  sub_name = selected_data.get('sub_district_name', '')
+                  if not sub_name and 'properties' in selected_data:
+                       sub_name = selected_data['properties'].get('sub_district_name', '')
+
+                  if sub_name:
+                       with col_info:
+                           st.divider()
+                           st.markdown(f"### District: `{sub_name}`")
+                           st.markdown("**Existing Visits:**")
+                           
+                           visits = visit_records.get(sub_name, [])
+                           if visits:
+                               for v in visits:
+                                   st.text(f"• {v}")
+                           else:
+                               st.caption("No visits recorded.")
 
 if __name__ == "__main__":
     main()
