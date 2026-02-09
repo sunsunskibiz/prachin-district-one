@@ -199,24 +199,8 @@ def get_election_html(row):
     chart_header = "<div style='font-size: 12px; font-weight: bold; margin-bottom: 2px;'>Vote Counts</div>"
     chart_table = f"<table style='width:100%; border-collapse: collapse;'>{''.join(chart_rows)}</table>"
 
-    # 3. Google Maps Link
-    try:
-        lat = float(row.get("latitude", 0))
-        lon = float(row.get("longitude", 0))
-    except:
-        lat, lon = 0.0, 0.0
-
     gmaps_link = ""
-    if lat != 0 and lon != 0:
-        url = f"https://www.google.com/maps/search/?api=1&query={lat},{lon}"
-        # Button Style
-        gmaps_link = f"""
-        <div style='margin-top: 10px; text-align: center;'>
-            <a href='{url}' target='_blank' style='display: inline-block; background-color: #4da6ff; color: white; padding: 5px 10px; border-radius: 4px; text-decoration: none; font-size: 11px; font-weight: bold;'>
-                📍 Google Map
-            </a>
-        </div>
-        """
+    # Google Maps Link removed as per request
 
     return header + info_table + chart_header + chart_table + gmaps_link
 
@@ -330,23 +314,8 @@ def get_point_comment_tooltip(row, comments_df, df_election=None):
     if not has_comments:
         comments_html = "<div style='font-size: 11px; color: #888; margin-top: 5px;'><i>Click to add contact info</i></div>"
 
-    # Google Maps Link
+    # Google Maps Link removed as per request
     gmaps_html = ""
-    try:
-        # Use row lat/lon preferably
-        g_lat = float(row.get("latitude", 0))
-        g_lon = float(row.get("longitude", 0))
-        if g_lat != 0 and g_lon != 0:
-            url = f"https://www.google.com/maps/search/?api=1&query={g_lat},{g_lon}"
-            gmaps_html = f"""
-            <div style='margin-top: 8px; border-top: 1px dashed #555; padding-top: 5px; text-align: center;'>
-                <a href='{url}' target='_blank' style='color: #4da6ff; text-decoration: none; font-size: 11px;'>
-                    <b>📍 Open in Google Maps</b>
-                </a>
-            </div>
-            """
-    except:
-        pass
 
     return f"<div style='min-width: 250px;'>{header}{comments_html}{gmaps_html}</div>"
 

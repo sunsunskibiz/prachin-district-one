@@ -88,7 +88,7 @@ logger = logging.getLogger(__name__)
 st.set_page_config(
     page_title="Dashboard of Prachinburi District 1",
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="collapsed",
 )
 
 
@@ -282,7 +282,7 @@ def create_map_layers(
                 if "point_color" in df_map_points.columns
                 else [255, 65, 54, 200]
             ),
-            get_radius=100,
+            get_radius=300,
             pickable=True,
             auto_highlight=True,
         )
@@ -354,6 +354,26 @@ def main():
 
 def _main_app_logic(username):
     st.title("Dashboard of Prachinburi District 1")
+
+    # --- Mobile Optimization CSS ---
+    st.markdown(
+        """
+        <style>
+        @media only screen and (max-width: 600px) {
+            h1 {
+                font-size: 1.8rem !important;
+                padding-bottom: 0.5rem !important;
+            }
+            .block-container {
+                padding-top: 2rem !important;
+                padding-left: 1rem !important;
+                padding-right: 1rem !important;
+            }
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
 
     # --- Heartbeat Debug ---
     # st.sidebar.markdown(f"**Server Time:** `{time.strftime('%H:%M:%S')}`")
@@ -624,6 +644,7 @@ def _main_app_logic(username):
             "Comment Assign",
             "Point Comment",
             "Visit Record",
+            "Get Election Point",
         ],
         horizontal=True,
         label_visibility="collapsed",
@@ -635,6 +656,7 @@ def _main_app_logic(username):
             "Comment Assign",
             "Point Comment",
             "Visit Record",
+            "Get Election Point",
         ].index(st.session_state["active_tab"]),
     )
 
@@ -1496,69 +1518,9 @@ def _main_app_logic(username):
             r,
             key="main_map",
             height=700,
-            on_select="rerun",
-            selection_mode="single-object",
+            # on_select="rerun",  # Disabled in Overview to prevent accidental refreshes/URL popups
+            # selection_mode="single-object",
         )
-
-        # --- Handle Map Click (Copy Google Map URL) ---
-        selection_state = st.session_state.get("main_map", {})
-        if selection_state and "selection" in selection_state:
-            selection = selection_state["selection"]
-            if selection and "objects" in selection:
-                # Iterate through selected objects (usually one)
-                for layer_id, obj_list in selection["objects"].items():
-                    if obj_list and layer_id == "layer_points":  # Target specific layer
-                        data = obj_list[0]
-                        if "latitude" in data and "longitude" in data:
-                            lat = data["latitude"]
-                            lon = data["longitude"]
-                            # Extract Name if available
-                            # data might be aggregated or raw.
-                            # If aggregated, we might have 'tooltip_html' but not raw name easily unless we parse content?
-                            # But wait, df_map_points was created with 'tooltip_html'.
-                            # If it's a scatterplot layer, the object data is the row from the dataframe.
-                            # df_map_points has columns ['latitude', 'longitude', 'tooltip_html', 'point_color'...]
-
-                            # Construct Google Maps URL
-                            gmaps_url = f"https://www.google.com/maps/search/?api=1&query={lat},{lon}"
-
-                            # UX: Toast + Code Block for Copying
-                            st.toast(
-                                f"📍 Point Selected: {lat:.5f}, {lon:.5f}", icon="🗺️"
-                            )
-
-                            # Auto-Copy
-                            copy_to_clipboard(gmaps_url)
-
-                            # Display text input or code block for easy copying
-                            # We place it in a prominent spot
-                            st.markdown("### 🔗 Selected Point Link")
-                            st.code(gmaps_url, language="text")
-                            st.markdown(f"[Open in Google Maps]({gmaps_url})")
-
-        # Google Maps Links for Selected Points
-        # Use filtered list if search is active, otherwise use full list (limited to 20)
-        df_links = df_election
-        if selected_units:
-            df_links = df_election[df_election["ชื่อหน่วยเลือกตั้ง"].isin(selected_units)]
-
-        if not df_links.empty and len(df_links) < 20:
-            # Only show if reasonable number, otherwise list is too long.
-            # If search is active (implied by small number usually), show links.
-            st.markdown("### 📍 Location Links")
-            st.markdown("Click below to open in Google Maps:")
-
-            # Use columns to make it compact? Or just a list. A list is clearer.
-            for index, row in df_links.iterrows():
-                lat = row["latitude"]
-                lon = row["longitude"]
-                name = row.get("ชื่อหน่วยเลือกตั้ง", "Location")
-                gmaps_url = (
-                    f"https://www.google.com/maps/search/?api=1&query={lat},{lon}"
-                )
-
-                st.markdown(f"- **[{name}]({gmaps_url})**")
-            st.markdown("---")
 
         # Legend (Only if Winner layer is active)
         if show_winner:
@@ -1572,6 +1534,83 @@ def _main_app_logic(username):
             )
 
         # Comments / Annotation Section
+
+    # --- TAB: GET ELECTION POINT (New) ---
+    if st.session_state["active_tab"] == "Get Election Point":
+        st.header("Get Election Point URL")
+        st.caption("Click on an Election Point (Red Dot) to get the Google Maps URL.")
+
+        # Re-use layers from Overview but focus on points
+        # actually we can just reuse the same logic or create specific layers
+
+        # Grid aggregation logic (same as overview)
+        df_ep_points = (
+            df_map_points.copy() if not df_map_points.empty else pd.DataFrame()
+        )
+
+        # If search is active in overview, should it affect here?
+        # Probably yes, let's respect 'filtered_locations' if we want consistency,
+        # OR let this tab be independent. User said "move the feature", implies dedicated tool.
+        # Let's show ALL points to be safe unless we want to link search.
+        # Let's use the 'df_map_points' which is already aggregated.
+
+        layers_ep = create_map_layers(
+            gdf_districts,
+            subdistrict_colors,
+            True,  # show_districts
+            False,  # show_winner
+            True,  # show_points
+            False,  # show_campaign_pins
+            False,  # show_comments
+            False,
+            False,
+            False,
+            False,  # Colors
+            False,
+            {},  # Visit
+            [],
+            {},  # Uploaded
+            df_ep_points,  # Points
+            None,
+            None,
+        )
+
+        view_state_ep = pdk.ViewState(latitude=14.0, longitude=101.5, zoom=10)
+
+        st.pydeck_chart(
+            pdk.Deck(
+                layers=layers_ep,
+                initial_view_state=view_state_ep,
+                map_style="mapbox://styles/mapbox/light-v9",
+                tooltip={"html": "{tooltip_html}", "style": {"color": "white"}},
+            ),
+            key="ep_map",
+            on_select="rerun",
+            selection_mode="single-object",
+            height=600,
+        )
+
+        # Logic to handle selection
+        selection_state = st.session_state.get("ep_map", {})
+        if selection_state and "selection" in selection_state:
+            selection = selection_state["selection"]
+            if selection and "objects" in selection:
+                for layer_id, obj_list in selection["objects"].items():
+                    if obj_list and layer_id == "layer_points":
+                        data = obj_list[0]
+                        if "latitude" in data and "longitude" in data:
+                            lat = data["latitude"]
+                            lon = data["longitude"]
+
+                            gmaps_url = f"https://www.google.com/maps/search/?api=1&query={lat},{lon}"
+
+                            st.success(f"📍 Selected: {lat:.5f}, {lon:.5f}")
+                            st.markdown("### 🔗 Google Maps Link")
+                            st.code(gmaps_url, language="text")
+                            st.markdown(f"[Open in Google Maps]({gmaps_url})")
+
+                            # Auto-copy
+                            copy_to_clipboard(gmaps_url)
 
     # --- TAB: ANALYSIS DETAILS ---
     if st.session_state["active_tab"] == "Analysis Details":
