@@ -29,18 +29,17 @@ def inject_data_and_reload():
     import datetime
     today = datetime.date.today().strftime("%Y-%m-%d")
     visits = {
-        "ดงพระราม": [{"date": today, "note": "Visited community center"}],
+        "ดงพระราม": [today],
         "บ้านทาม": [
-            {"date": today, "note": "Meeting local leaders"},
-            {"date": "2026-03-10", "note": "Previous check"},
-            {"date": "2026-03-05", "note": "Initial planning"},
-            {"date": "2026-03-01", "note": "First contact"}
+            today,
+            "2026-03-10",
+            "2026-03-05",
+            "2026-03-01"
         ],
-        "หนองโพรง": [{"date": "2026-03-12", "note": "Follow up"}, {"date": "2026-03-14", "note": "Second follow up"}],
-        "ท่าตูม": [{"date": "2026-03-15", "note": "Door-to-door check"}],
-        "ศรีมหาโพธิ": [{"date": "2026-03-11", "note": "City hall visit"}, {"date": "2026-03-01", "note": "Met mayor"}],
-        "โคกปีบ": [{"date": "2026-02-28", "note": "Event"}, {"date": "2026-03-02", "note": "Followup"}, {"date": "2026-03-05", "note": "Another event"}, {"date": "2026-03-10", "note": "Visit 4"}]
-
+        "หนองโพรง": ["2026-03-12", "2026-03-14"],
+        "ท่าตูม": ["2026-03-15"],
+        "ศรีมหาโพธิ": ["2026-03-11", "2026-03-01"],
+        "โคกปีบ": ["2026-02-28", "2026-03-02", "2026-03-05", "2026-03-10"]
     }
     with open(visit_file, "w") as f:
         json.dump(visits, f, ensure_ascii=False)
