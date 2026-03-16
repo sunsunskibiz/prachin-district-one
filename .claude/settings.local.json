@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pip3 show streamlit)",
+      "Bash(pip3 show playwright)",
+      "Bash(pip3 show selenium)"
+    ]
+  }
+}
